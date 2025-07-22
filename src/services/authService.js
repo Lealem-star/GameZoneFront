@@ -36,14 +36,14 @@ authApi.interceptors.response.use(
 );
 
 // Test server connection
-export const testServer = async () => {
-  try {
-    const response = await authApi.get('/auth/test');
-    return response.data;
-  } catch (error) {
-    throw new Error(`Server connection failed: ${error.message}`);
-  }
-};
+// export const testServer = async () => {
+//   try {
+//     const response = await authApi.get('/auth/test');
+//     return response.data;
+//   } catch (error) {
+//     throw new Error(`Server connection failed: ${error.message}`);
+//   }
+// };
 
 // Login function
 export const login = async (credentials) => {
