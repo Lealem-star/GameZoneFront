@@ -1,25 +1,29 @@
-import logo from './logo.svg';
-import './App.css';
+import React from 'react';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom'; // Use Routes instead of Switch
+import LandingPage from './pages/LandingPage';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import GameControllerDashboard from './pages/gamer/GameControllerDashboard';
+import GameDashboard from './pages/gamer/GameDashboard';
+import GameControllerDetail from './pages/admin/GameControllerDetail';
+import DrawWinner from './pages/gamer/DrawWinner';
+import { AuthProvider } from './context/AuthContext';
 
-function App() {
+const App = () => {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<LandingPage />} /> {/* Use element prop instead of component */}
+          <Route path="/AdminDashboard" element={<AdminDashboard />} />
+          <Route path="/GameController" element={<GameControllerDashboard />} />
+          <Route path="/game/:gameId" element={<GameDashboard />} />
+          <Route path="/gamecontrollerdashboard" element={<GameControllerDashboard />} />
+          <Route path="/gameControllerDetail/:id" element={<GameControllerDetail />} />
+          <Route path="/draw-winner/:gameId" element={<DrawWinner />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
-}
+};
 
 export default App;
