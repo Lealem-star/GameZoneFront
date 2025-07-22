@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'https://gursha-backend-git-main-meseretlealem8-2171s-projects.vercel.app/api';
+const API_BASE_URL = 'https://gursha-backend.vercel.app/api';
 
 // Create axios instance with base configuration
 const authApi = axios.create({
