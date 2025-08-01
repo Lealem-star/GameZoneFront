@@ -334,7 +334,7 @@ const GameDashboard = () => {
 
                 <div className="bg-white rounded-lg shadow flex-1 flex flex-col items-center justify-center mb-6 animate-fade-in-up delay-200" style={{ maxHeight: 350 }}>
                     {game && game.prize && game.prize.image ? (
-                        <img src={game.prize.image.startsWith('http') ? game.prize.image : `${game.prize.image}`} alt="Award" className="h-full w-full object-fit animate-float" style={{ maxHeight: '100%', maxWidth: '100%' }} onError={e => { e.target.onerror = null; e.target.src = gurshaLogo; }} />
+                        <img src={game.prize.image.startsWith('https') ? game.prize.image : `${game.prize.image}`} alt="Award" className="h-full w-full object-fit animate-float" style={{ maxHeight: '100%', maxWidth: '100%' }} onError={e => { e.target.onerror = null; e.target.src = gurshaLogo; }} />
                     ) : (
                         <div className="text-lg text-gray-500">Award image</div>
                     )}
