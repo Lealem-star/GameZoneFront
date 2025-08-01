@@ -70,7 +70,7 @@ const Sidebar = () => {
         {loading ? (
           <FaUserCircle className="text-3xl" />
         ) : controller && controller.image ? (
-          <img src={`http://localhost:5000${controller.image}`} alt={controller.username} className="w-12 h-12 rounded-full object-cover border-2 border-white" />
+          <img src={`https://localhost:5000${controller.image}`} alt={controller.username} className="w-12 h-12 rounded-full object-cover border-2 border-white" />
         ) : (
           <FaUserCircle className="text-3xl" />
         )}
