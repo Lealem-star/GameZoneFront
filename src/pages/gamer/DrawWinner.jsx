@@ -4,9 +4,8 @@ import { getGameById, updateGame, getParticipants } from '../../services/api';
 // Add confetti import
 import Confetti from 'react-confetti';
 
-const SPIN_DURATION = 60000; // 1 minute
-const SHOW_WINNER_DURATION = 5000; // 5 seconds
-const WINNER_ANNOUNCE_DURATION = 60000; // 2 minutes
+const SPIN_DURATION = 30000; // 1 minute
+const WINNER_ANNOUNCE_DURATION = 30000; // 2 minutes
 
 const DrawWinner = () => {
     const { gameId } = useParams();

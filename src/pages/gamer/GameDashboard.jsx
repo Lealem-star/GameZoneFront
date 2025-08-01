@@ -72,6 +72,11 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
         }
     };
 
+    const handleRetake = () => {
+        setCapturedImage(null); // Clear captured image
+        setShowCamera(true); // Show camera again
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
@@ -124,11 +129,14 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
                     <input type="text" placeholder="Name" value={name} onChange={e => setName(e.target.value)} required className="border p-2 rounded" />
                     <label className="text-sm font-medium">Photo</label>
                     {capturedImage ? (
-                        <img src={capturedImage} alt="Captured" className="w-32 h-32 object-cover rounded mb-2 self-center" />
+                        <div className="flex flex-col items-center">
+                            <img src={capturedImage} alt="Captured" className="w-32 h-32 object-cover rounded mb-2 self-center" />
+                            <button type="button" className="text-blue-500 underline" onClick={handleRetake}>Retake Photo</button>
+                        </div>
                     ) : null}
                     {showCamera ? (
                         <div className="flex flex-col items-center gap-2">
-                            <video ref={videoRef} className="w-48 h-36 bg-black rounded" autoPlay playsInline />
+                            <video ref={videoRef} className="w-full h-auto bg-black rounded" autoPlay playsInline />
                             <canvas ref={canvasRef} style={{ display: 'none' }} />
                             <button type="button" className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition-all duration-200" onClick={handleCapture}>Capture</button>
                             <button type="button" className="text-gray-500 underline" onClick={() => setShowCamera(false)}>Cancel</button>
@@ -323,6 +331,7 @@ const GameDashboard = () => {
                         <button className="bg-red-600 text-white px-4 py-2 rounded font-semibold hover:bg-red-700 transition-all duration-200" onClick={handleHaltGame}>Halt Game</button>
                     </div>
                 </div>
+
                 <div className="bg-white rounded-lg shadow flex-1 flex flex-col items-center justify-center mb-6 animate-fade-in-up delay-200" style={{ maxHeight: 350 }}>
                     {game && game.prize && game.prize.image ? (
                         <img src={game.prize.image.startsWith('http') ? game.prize.image : `${game.prize.image}`} alt="Award" className="h-full w-full object-fit animate-float" style={{ maxHeight: '100%', maxWidth: '100%' }} onError={e => { e.target.onerror = null; e.target.src = gurshaLogo; }} />
@@ -330,6 +339,7 @@ const GameDashboard = () => {
                         <div className="text-lg text-gray-500">Award image</div>
                     )}
                 </div>
+
                 {/* Marquee/scrolling participant images */}
                 <ParticipantMarquee participants={participants} />
                 <AddParticipantModal open={showAddModal} onClose={() => setShowAddModal(false)} onAdded={handleParticipantAdded} gameId={gameId} />
