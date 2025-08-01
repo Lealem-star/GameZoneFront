@@ -6,7 +6,7 @@ import Confetti from 'react-confetti';
 
 const SPIN_DURATION = 60000; // 1 minute
 const SHOW_WINNER_DURATION = 5000; // 5 seconds
-const WINNER_ANNOUNCE_DURATION = 120000; // 2 minutes
+const WINNER_ANNOUNCE_DURATION = 60000; // 2 minutes
 
 const DrawWinner = () => {
     const { gameId } = useParams();

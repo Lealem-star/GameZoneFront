@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { getGameControllers, getTotalRevenue, deleteGameController, fetchUsers, fetchGames } from '../../services/api';
+import {  deleteGameController, fetchUsers, fetchGames } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import logo from '../../assets/gurshalogo.png';
@@ -17,7 +17,7 @@ const SIDEBAR_LINKS = [
 ];
 
 const AdminDashboard = () => {
-  const [revenue, setRevenue] = useState(0);
+  // const [revenue, setRevenue] = useState(0);
   const [loading, setLoading] = useState(true);
   //const [controllers, setControllers] = useState([]);`
   const navigate = useNavigate();
@@ -40,7 +40,7 @@ const AdminDashboard = () => {
   }, []);
 
   // Aggregations
-  const totalRevenue = games.reduce((sum, g) => sum + (g.totalRevenue || 0), 0);
+  // const totalRevenue = games.reduce((sum, g) => sum + (g.totalRevenue || 0), 0);
   const controllers = users.filter(u => u.role === 'gameController');
 
   const handleAddSuccess = async () => {
@@ -61,12 +61,12 @@ const AdminDashboard = () => {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [controllersData, totalRevenue] = await Promise.all([
-        getGameControllers(),
-        getTotalRevenue()
-      ]);
-      //setControllers(controllersData);
-      setRevenue(totalRevenue);
+      // const [controllersData, totalRevenue] = await Promise.all([
+      //   getGameControllers(),
+      //   getTotalRevenue()
+      // ]);
+      // //setControllers(controllersData);
+      // setRevenue(totalRevenue);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -140,7 +140,7 @@ const AdminDashboard = () => {
   const totalSystemRevenueToday = todayGames.reduce((sum, game) => {
     const fee = Number(game.entranceFee) || 0;
     const count = Array.isArray(game.participants) ? game.participants.length : 0;
-    return sum + (fee * count * 0.4);
+    return sum + (fee * count * 0.3);
   }, 0);
 
 
@@ -152,7 +152,7 @@ const AdminDashboard = () => {
         <div className="flex items-center gap-2 px-6 py-6 text-2xl font-bold border-b border-purple-800 animate-fade-in-down">
           <span><div className="flex flex-col items-center mb-4 md:mb-0">
             <img src={logo} alt="Gursha Logo" className="h-23 md:h-35 mb-2 animate-fade-in-up" />
-            <h1 className="text-2xl md:text-xl font-bold text-white text-center animate-fade-in-up delay-0">Gursha Ticket</h1>
+            <h1 className="text-2xl md:text-xl font-bold text-white text-center animate-fade-in-up delay-200">Gursha Ticket</h1>
           </div></span>
         </div>
         <div className="flex flex-col gap-2 mt-4">
@@ -170,7 +170,7 @@ const AdminDashboard = () => {
           <img src={lealemppl} alt="profile" className="w-10 h-10 rounded-full" />
           <div>
             <div className="font-semibold">Lealem Meseret</div>
-            <div className="text-xs text-purple-0">System Admin</div>
+            <div className="text-xs text-purple-200">System Admin</div>
           </div>
         </div>
       </aside>
@@ -202,19 +202,19 @@ const AdminDashboard = () => {
 
         {/* Dashboard Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-gradient-to-br from-green-100 to-green-0 rounded-xl shadow-lg p-6 flex flex-col gap-2 items-center animate-fade-in-up">
+          <div className="bg-gradient-to-br from-green-100 to-green-200 rounded-xl shadow-lg p-6 flex flex-col gap-2 items-center animate-fade-in-up">
             <div className="flex items-center gap-2 mb-2"><FaDollarSign className="text-3xl text-green-400" /><span className="font-semibold text-gray-700 text-lg">Total System Revenue (Today)</span></div>
             <div className="text-3xl font-extrabold text-green-700">ETB {totalSystemRevenueToday.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
           </div>
         </div>
 
         {/* Main Dashboard Content */}
-        <h3 className="text-2xl font-extrabold bg-gradient-to-r from-orange-400 via-yellow-500 to-purple-600 bg-clip-text text-transparent drop-shadow flex items-center gap-2 animate-fade-in-up delay-0">
+        <h3 className="text-2xl font-extrabold bg-gradient-to-r from-orange-400 via-yellow-500 to-purple-600 bg-clip-text text-transparent drop-shadow flex items-center gap-2 animate-fade-in-up delay-200">
           <span role="img" aria-label="burger">🍔</span>
           Game Controller Lists
         </h3>
         <div className="grid grid-cols-1 gap-6 p-8">
-          <GameControllerTable controllers={controllers} deletingId={deletingId} handleDelete={handleDelete} rowClassName="hover:bg-blue-50 transition-all duration-0 animate-fade-in-up" />
+          <GameControllerTable controllers={controllers} deletingId={deletingId} handleDelete={handleDelete} rowClassName="hover:bg-blue-50 transition-all duration-200 animate-fade-in-up" />
           <ConfirmModal
             isOpen={confirmModalOpen}
             title="Delete Game Controller"

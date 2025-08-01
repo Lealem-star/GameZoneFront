@@ -78,24 +78,6 @@ const LoginForm = () => {
     }
   };
 
-  const getServerStatusColor = () => {
-    switch (serverStatus) {
-      case 'connected': return 'text-green-600';
-      case 'disconnected': return 'text-red-600';
-      case 'checking': return 'text-yellow-600';
-      default: return 'text-gray-600';
-    }
-  };
-
-  const getServerStatusText = () => {
-    switch (serverStatus) {
-      case 'connected': return '✅ Server Connected';
-      case 'disconnected': return '❌ Server Disconnected';
-      case 'checking': return '🔄 Checking Server...';
-      default: return '❓ Unknown Status';
-    }
-  };
-
   return (
     <div className="flex flex-col items-center p-4">
       <div className="flex flex-col items-center mb-6">

@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import gurshaLogo from '../../assets/gurshalogo.png';
-import { getParticipants, getAllParticipants, getGameById, createParticipant, deleteGame } from '../../services/api';
+import { getParticipants, getGameById, createParticipant, deleteGame } from '../../services/api';
 
 // Toast notification component
 const Toast = ({ message, type, onClose }) => (
@@ -67,7 +67,7 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             const dataUrl = canvas.toDataURL('image/png');
             setCapturedImage(dataUrl);
-            setPhoto(null); // clear file input if any
+            setPhoto(null); // Clear file input if any
             setShowCamera(false);
         }
     };
@@ -148,7 +148,6 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
     );
 };
 
-
 // Replace the marquee/scrolling participant images with a fixed-width, auto-rotating carousel
 const ParticipantMarquee = ({ participants }) => {
     if (!participants || participants.length === 0) {
@@ -166,10 +165,12 @@ const ParticipantMarquee = ({ participants }) => {
             </div>
         );
     }
+
     // Duplicate the list for seamless looping
     const display = participants.concat(participants);
     // Calculate animation duration based on number of participants (longer for more)
     const duration = Math.max(10, participants.length * 1.5); // seconds
+
     return (
         <div className="overflow-hidden w-full flex items-center justify-center bg-gradient-to-r from-yellow-100 via-orange-50 to-pink-100 rounded-xl shadow-lg" style={{ height: 140, maxWidth: 950, margin: '0 auto' }}>
             <div
@@ -181,7 +182,7 @@ const ParticipantMarquee = ({ participants }) => {
             >
                 {display.map((participant, idx) => (
                     <div
-                        key={participant._id || idx}
+                        key={`${participant._id}-${idx}`} // Combine _id with index for uniqueness
                         className="bg-white bg-opacity-80 rounded-xl shadow-xl flex flex-col items-center justify-end w-24 h-36 min-w-[96px] mx-2 border-2 border-transparent hover:border-yellow-400 hover:shadow-2xl hover:scale-105 transition-all duration-300 animate-fade-in-up overflow-hidden relative"
                         style={{ animationDelay: `${(idx % participants.length) * 0.1}s` }}
                     >
@@ -218,27 +219,29 @@ const GameDashboard = () => {
     const [showAddModal, setShowAddModal] = useState(false);
     const [currentParticipant, setCurrentParticipant] = useState(null);
     const [showParticipantAnimation, setShowParticipantAnimation] = useState(false);
-    const [toast, setToast] = useState(null); // Add toast state to GameDashboard
+    const [toast, setToast] = useState(null);
     const [showHaltModal, setShowHaltModal] = useState(false);
     const [haltLoading, setHaltLoading] = useState(false);
 
-    const fetchParticipants = () => {
+    // Wrap fetchParticipants in useCallback
+    const fetchParticipants = useCallback(() => {
         if (gameId) {
             getParticipants(gameId).then(setParticipants).catch(() => setParticipants([]));
         }
-    };
+    }, [gameId]); // Add gameId as a dependency
 
     useEffect(() => {
         if (gameId) {
             getGameById(gameId).then(setGame);
             fetchParticipants();
         }
-    }, [gameId]);
+    }, [gameId, fetchParticipants]); // Include fetchParticipants in the dependency array
 
     // Draw Winner logic
     const handleDrawWinner = () => {
         navigate(`/draw-winner/${gameId}`);
     };
+
     // Halt Game logic
     const handleHaltGame = () => {
         setShowHaltModal(true);
@@ -373,4 +376,4 @@ const GameDashboard = () => {
     );
 };
 
-export default GameDashboard; 
+export default GameDashboard;

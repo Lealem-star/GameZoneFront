@@ -1,15 +1,15 @@
 import axios from 'axios';
 
-//const API_BASE_URL = 'http://localhost:5000/api'; 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
-    
+
+
 // Create axios instance with base configuration
 const api = axios.create({
     baseURL: API_BASE_URL,
     headers: {
         'Content-Type': 'application/json',
     },
-    timeout: 10000, // 10 second timeout
+    timeout: 30000, // 10 second timeout
 });
 
 // Add request interceptor for debugging
@@ -314,4 +314,18 @@ export const getUserById = async (id) => {
         console.error('💥 Error fetching user by ID:', error.response?.data || error.message);
         throw error;
     }
+};
+
+
+
+// Get all games managed by a specific controller
+export const getGamesControllerById = async (controllerId) => {
+  const res = await api.get(`/games/controller/${controllerId}`);
+  return res.data;
+};
+
+// Get total revenue for a specific controller
+export const getControllerRevenue = async (controllerId) => {
+  const res = await api.get(`/games/controller/${controllerId}/revenue`);
+  return res.data;
 };

@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaTrophy, FaUsers, FaDollarSign, FaGamepad, FaChartBar, FaUserPlus, FaGift, FaCog, FaBars, FaSearch, FaBell, FaUserCircle, FaPlus, FaHistory, FaFilter, FaSort, FaEdit, FaTrash, FaEye, FaSignOutAlt, FaFileInvoice } from 'react-icons/fa';
-import { getGames, getPrizes, getTotalRevenue, createGame, createPrize, getUserById, createParticipant, deleteGame } from '../../services/api';
+import { FaTrophy, FaUsers, FaDollarSign, FaGamepad, FaCog, FaUserCircle, FaPlus, FaSignOutAlt } from 'react-icons/fa';
+import { getGames, createGame, createPrize, getUserById, createParticipant, getGamesControllerById } from '../../services/api';
 import gurshaLogo from '../../assets/gurshalogo.png';
 import ParticipantForm from '../../components/ParticipantForm';
-
+// const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 const Sidebar = () => {
   const navigate = useNavigate();
@@ -16,10 +16,6 @@ const Sidebar = () => {
       const userId = localStorage.getItem('userId');
       const username = localStorage.getItem('username');
       const role = localStorage.getItem('role');
-
-      console.log('Sidebar userId from localStorage:', userId);
-      console.log('Sidebar username from localStorage:', username);
-      console.log('Sidebar role from localStorage:', role);
 
       if (!userId) {
         setLoading(false);
@@ -74,7 +70,7 @@ const Sidebar = () => {
         {loading ? (
           <FaUserCircle className="text-3xl" />
         ) : controller && controller.image ? (
-          <img src={`${controller.image}`} alt={controller.username} className="w-12 h-12 rounded-full object-cover border-2 border-white" />
+          <img src={`http://localhost:5000${controller.image}`} alt={controller.username} className="w-12 h-12 rounded-full object-cover border-2 border-white" />
         ) : (
           <FaUserCircle className="text-3xl" />
         )}
@@ -184,93 +180,16 @@ const SummaryCards = ({ totalGames, totalParticipants, systemRevenue }) => (
       <div className="text-3xl font-extrabold text-orange-700">{totalParticipants}</div>
     </div>
     <div className="bg-gradient-to-br from-green-100 to-green-200 rounded-xl shadow-lg p-6 flex flex-col gap-2 items-center animate-fade-in-up delay-200">
-      <div className="flex items-center gap-2 mb-2"><FaDollarSign className="text-3xl text-green-400" /><span className="font-semibold text-gray-700 text-lg">System Revenue (40%)</span></div>
+      <div className="flex items-center gap-2 mb-2"><FaDollarSign className="text-3xl text-green-400" /><span className="font-semibold text-gray-700 text-lg">System Revenue (Today)</span></div>
       <div className="text-3xl font-extrabold text-green-700">${systemRevenue.toFixed(2)}</div>
     </div>
   </div>
 );
 
-function formatDate(dateStr) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-}
-
 function isToday(dateStr) {
   const d = new Date(dateStr);
   const today = new Date();
   return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
-}
-
-function groupGamesByDayAndMeal(games) {
-  // Group games by day, then by meal time
-  const grouped = {};
-  games.forEach(game => {
-    const day = formatDate(game.scheduledTime || game.time || new Date());
-    if (!grouped[day]) grouped[day] = {};
-    const meal = game.mealType || 'Other';
-    if (!grouped[day][meal]) grouped[day][meal] = [];
-    grouped[day][meal].push(game);
-  });
-  return grouped;
-}
-
-const GamesByDayAndMeal = ({ games }) => {
-  const navigate = useNavigate();
-  const grouped = groupGamesByDayAndMeal(games);
-  return (
-    <div className="mt-6">
-      {Object.entries(grouped).map(([day, meals]) => (
-        <div key={day} className="mb-8">
-          <div className="text-xl font-bold mb-2">{day}</div>
-          {Object.entries(meals).map(([meal, gamesList]) => (
-            <div key={meal} className="mb-4 ml-4">
-              <div className="text-lg font-semibold mb-1">{meal} <span className="text-xs text-gray-500">({gamesList.length} round{gamesList.length > 1 ? 's' : ''})</span></div>
-              <table className="w-full text-sm mb-2">
-                <thead>
-                  <tr className="text-left text-gray-500 border-b">
-                    <th className="py-2">Round</th>
-                    <th>Participants NO</th>
-                    <th>Entrance Fee</th>
-                    <th>Prize</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gamesList.map((game, idx) => (
-                    <tr
-                      key={game._id || idx}
-                      className="border-b last:border-0 cursor-pointer hover:bg-blue-50"
-                      onClick={() => navigate(`/game/${game._id}`)}
-                    >
-                      <td className="py-2">
-                        <div className="font-medium">{game.name}</div>
-                        <div className="text-xs text-gray-400">{game.time || game.scheduledTime || ''}</div>
-                      </td>
-                      <td>{game.participants ? game.participants.length : '-'}</td>
-                      <td>${game.entranceFee || '-'}</td>
-                      <td>${game.prizeAmount || '-'}</td>
-                      <td><span className="px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-600">{game.status || '-'}</span></td>
-                      <td className="flex gap-2">
-                        <button title="Edit" onClick={e => { e.stopPropagation(); /* handle edit */ }}><FaEdit className="text-blue-500" /></button>
-                        <button title="Delete" onClick={e => { e.stopPropagation(); /* handle delete */ }}><FaTrash className="text-red-500" /></button>
-                        <button title="View" onClick={e => { e.stopPropagation(); navigate(`/game/${game._id}`); }}><FaEye className="text-gray-500" /></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-};
-
-function formatDateOnly(dateStr) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
 const CompletedGamesTable = ({ games }) => {
@@ -309,17 +228,17 @@ const CompletedGamesTable = ({ games }) => {
                     <th className="px-4 py-2 text-left">Game Name</th>
                     <th className="px-4 py-2 text-left">Entrance Fee</th>
                     <th className="px-4 py-2 text-left">Participants</th>
-                    <th className="px-4 py-2 text-left">60% Prize</th>
+                    <th className="px-4 py-2 text-left">70% Prize</th>
                     <th className="px-4 py-2 text-left">Winner Name</th>
-                    <th className="px-4 py-2 text-left">System Revenue (40%)</th>
+                    <th className="px-4 py-2 text-left">System Revenue (30)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {gamesByDate[date].map(game => {
                     const participantCount = Array.isArray(game.participants) ? game.participants.length : 0;
                     const totalCollected = participantCount * (Number(game.entranceFee) || 0);
-                    const prize80 = (totalCollected * 0.6).toFixed(2);
-                    const systemRevenue = (totalCollected * 0.4).toFixed(2);
+                    const prize80 = (totalCollected * 0.7).toFixed(2);
+                    const systemRevenue = (totalCollected * 0.3).toFixed(2);
                     return (
                       <tr key={game._id} className="hover:bg-yellow-50 border-b border-gray-100 transition-all duration-200 animate-fade-in-up">
                         <td className="px-4 py-2 font-semibold text-orange-700">{game.name || '-'}</td>
@@ -378,9 +297,13 @@ const OngoingGamesSection = ({ games }) => {
 const GameControllerDashboard = () => {
   const [games, setGames] = useState([]);
   const [revenue, setRevenue] = useState(0);
+
   const [totalGamesToday, setTotalGamesToday] = useState(0);
+
   const [totalParticipants, setTotalParticipants] = useState(0);
+
   const [systemRevenue, setSystemRevenue] = useState(0);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showParticipantModal, setShowParticipantModal] = useState(false);
   const [showParticipantAnimation, setShowParticipantAnimation] = useState(false);
@@ -389,7 +312,8 @@ const GameControllerDashboard = () => {
   const navigate = useNavigate();
 
   const fetchData = async () => {
-    const gamesData = await getGames();
+    const userId = localStorage.getItem('userId');
+    const gamesData = await getGamesControllerById(userId);
     setGames(gamesData);
     // Filter today's games using createdAt
     const todayGames = gamesData.filter(g => isToday(g.createdAt));
@@ -405,7 +329,7 @@ const GameControllerDashboard = () => {
     const systemRevenueToday = todayGames.reduce((sum, g) => {
       const fee = Number(g.entranceFee) || 0;
       const count = Array.isArray(g.participants) ? g.participants.length : 0;
-      return sum + (fee * count * 0.2);
+      return sum + (fee * count * 0.3);
     }, 0);
     setTotalGamesToday(totalGamesToday);
     setTotalParticipants(totalParticipantsToday);
@@ -435,17 +359,6 @@ const GameControllerDashboard = () => {
   const completedGames = games.filter(g => g.winner);
   const ongoingGames = games.filter(g => !g.winner);
 
-  // Collect all today's participants
-  const todayParticipants = games
-    .filter(g => isToday(g.createdAt))
-    .flatMap(g => Array.isArray(g.participants) ? g.participants : [])
-    .slice(0, 100); // Limit to 100 for performance
-
-  // Add Participant logic
-  const handleAddParticipant = (game) => {
-    setCurrentGameForParticipant(game);
-    setShowParticipantModal(true);
-  };
 
   const handleParticipantSubmit = async (participantData) => {
     if (!currentGameForParticipant) return;
@@ -469,21 +382,6 @@ const GameControllerDashboard = () => {
     } catch (err) {
       alert('Failed to add participant');
       setShowParticipantModal(false);
-    }
-  };
-
-  const handleDrawWinner = (game) => {
-    navigate(`/draw-winner/${game._id}`);
-  };
-  const handleHaltGame = async (game) => {
-    if (!window.confirm(`Are you sure you want to halt (cancel) the game: ${game.name}?`)) return;
-    try {
-      await deleteGame(game._id);
-      // Refresh games list
-      const gamesData = await getGames();
-      setGames(gamesData);
-    } catch (err) {
-      alert('Failed to halt (delete) game');
     }
   };
 
