@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import gurshaLogo from '../../assets/gurshalogo.png';
 import { getParticipants, getGameById, createParticipant, deleteGame } from '../../services/api';
-import PrizeDisplay from '../../components/PrizeDisplay'; // Import the PrizeDisplay component
 
 // Toast notification component
 const Toast = ({ message, type, onClose }) => (
@@ -26,20 +25,17 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
     const [submitting, setSubmitting] = useState(false);
     const [showCamera, setShowCamera] = useState(false);
     const [capturedImage, setCapturedImage] = useState(null);
-    const [emoji, setEmoji] = useState('😀'); // Default emoji
-    const [useEmoji, setUseEmoji] = useState(false); // Toggle between photo and emoji
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
-    const streamRef = useRef(null);
+    let stream = useRef(null);
     const [toast, setToast] = useState(null);
 
     useEffect(() => {
         if (showCamera && videoRef.current) {
             (async () => {
                 try {
-                    // Use back camera by specifying facingMode
-                    streamRef.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } });
-                    videoRef.current.srcObject = streamRef.current;
+                    stream.current = await navigator.mediaDevices.getUserMedia({ video: true });
+                    videoRef.current.srcObject = stream.current;
                     videoRef.current.play();
                 } catch (err) {
                     alert('Could not access camera');
@@ -48,8 +44,8 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
             })();
         }
         return () => {
-            if (streamRef.current) {
-                streamRef.current.getTracks().forEach(track => track.stop());
+            if (stream.current) {
+                stream.current.getTracks().forEach(track => track.stop());
             }
         };
     }, [showCamera]);
@@ -84,52 +80,36 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
-
-        // Initialize photoBase64 to an empty string
         let photoBase64 = '';
-
-        // If using emoji, don't process photo
-        if (useEmoji) {
-            await addParticipant(null, emoji);
-            return;
-        }
-
-        // Check if there is a captured image or selected photo
         if (capturedImage) {
-            photoBase64 = capturedImage; // Use captured image
+            photoBase64 = capturedImage;
         } else if (photo) {
-            // If a photo file is selected, read it
             const reader = new FileReader();
             reader.onloadend = async () => {
                 photoBase64 = reader.result;
-                await addParticipant(photoBase64, null);
+                try {
+                    await createParticipant(gameId, { name, photo: photoBase64 });
+                    setName('');
+                    setPhoto(null);
+                    setCapturedImage(null);
+                    onAdded({ name, photo: photoBase64 });
+                    onClose();
+                    setToast({ message: 'Participant added successfully!', type: 'success' });
+                } catch (err) {
+                    setToast({ message: 'Failed to add participant', type: 'error' });
+                } finally {
+                    setSubmitting(false);
+                }
             };
             reader.readAsDataURL(photo);
-            return; // Exit early since we're handling the async read
-        } else {
-            // No photo selected, use emoji as fallback
-            await addParticipant(null, emoji);
             return;
         }
-
-        // Proceed to add the participant with the photo
-        await addParticipant(photoBase64, null);
-    };
-
-    // Helper function to add participant
-    const addParticipant = async (photoBase64, emojiValue) => {
         try {
-            await createParticipant(gameId, { 
-                name, 
-                photo: photoBase64, 
-                emoji: emojiValue || emoji 
-            }); // Include emoji in the participant data
+            await createParticipant(gameId, { name, photo: photoBase64 });
             setName('');
             setPhoto(null);
             setCapturedImage(null);
-            setEmoji('😀'); // Reset emoji to default
-            setUseEmoji(false); // Reset to photo mode
-            onAdded({ name, photo: photoBase64, emoji: emojiValue || emoji }); // Pass both photo and emoji
+            onAdded({ name, photo: photoBase64 });
             onClose();
             setToast({ message: 'Participant added successfully!', type: 'success' });
         } catch (err) {
@@ -147,79 +127,28 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
                 <h2 className="text-xl font-bold mb-4">Add Participant</h2>
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <input type="text" placeholder="Name" value={name} onChange={e => setName(e.target.value)} required className="border p-2 rounded" />
-                    
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-lg font-medium">Choose representation:</span>
-                        <div className="flex gap-4">
-                            <button 
-                                type="button" 
-                                className={`px-4 py-2 rounded font-semibold transition-all duration-200 ${!useEmoji ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-                                onClick={() => setUseEmoji(false)}
-                            >
-                                Photo
-                            </button>
-                            <button 
-                                type="button" 
-                                className={`px-4 py-2 rounded font-semibold transition-all duration-200 ${useEmoji ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-                                onClick={() => setUseEmoji(true)}
-                            >
-                                Emoji
-                            </button>
+                    <label className="text-sm font-medium">Photo</label>
+                    {capturedImage ? (
+                        <div className="flex flex-col items-center">
+                            <img src={capturedImage} alt="Captured" className="w-32 h-32 object-cover rounded mb-2 self-center" />
+                            <button type="button" className="text-blue-500 underline" onClick={handleRetake}>Retake Photo</button>
                         </div>
-                    </div>
-
-                    {useEmoji ? (
-                        <div className="flex flex-col gap-2">
-                            <label className="text-sm font-medium">Choose Emoji</label>
-                            <div className="flex flex-col items-center gap-2">
-                                <input 
-                                    type="text" 
-                                    placeholder="Insert Emoji" 
-                                    value={emoji} 
-                                    onChange={e => setEmoji(e.target.value)} 
-                                    className="border p-2 rounded text-center text-4xl w-full" 
-                                />
-                                <div className="text-sm text-gray-500">Type or paste your favorite emoji</div>
-                                <div className="flex flex-wrap gap-2 mt-2 justify-center">
-                                    {['😀', '😎', '🥳', '😍', '🤩', '🥰', '😇', '🤠', '🤑', '🤗'].map(e => (
-                                        <button 
-                                            key={e} 
-                                            type="button" 
-                                            className="text-2xl p-2 hover:bg-gray-100 rounded-full transition-all"
-                                            onClick={() => setEmoji(e)}
-                                        >
-                                            {e}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                    ) : null}
+                    {showCamera ? (
+                        <div className="flex flex-col items-center gap-2">
+                            <video ref={videoRef} className="w-full h-auto bg-black rounded" autoPlay playsInline />
+                            <canvas ref={canvasRef} style={{ display: 'none' }} />
+                            <button type="button" className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition-all duration-200" onClick={handleCapture}>Capture</button>
+                            <button type="button" className="text-gray-500 underline" onClick={() => setShowCamera(false)}>Cancel</button>
                         </div>
                     ) : (
-                        <>
-                            <label className="text-sm font-medium">Photo</label>
-                            {capturedImage ? (
-                                <div className="flex flex-col items-center">
-                                    <img src={capturedImage} alt="Captured" className="w-32 h-32 object-cover rounded mb-2 self-center" />
-                                    <button type="button" className="text-blue-500 underline" onClick={handleRetake}>Retake Photo</button>
-                                </div>
-                            ) : null}
-                            {showCamera ? (
-                                <div className="flex flex-col items-center gap-2">
-                                    <video ref={videoRef} className="w-full h-auto bg-black rounded" autoPlay playsInline />
-                                    <canvas ref={canvasRef} style={{ display: 'none' }} />
-                                    <button type="button" className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition-all duration-200" onClick={handleCapture}>Capture</button>
-                                    <button type="button" className="text-gray-500 underline" onClick={() => setShowCamera(false)}>Cancel</button>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col gap-2">
-                                    {(!capturedImage && !showCamera) && (
-                                        <button type="button" className="bg-blue-500 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700 transition-all duration-200" onClick={() => setShowCamera(true)}>Take Photo</button>
-                                    )}
-                                </div>
+                        <div className="flex flex-col gap-2">
+                            {(!capturedImage && !showCamera) && (
+                                <button type="button" className="bg-blue-500 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700 transition-all duration-200" onClick={() => setShowCamera(true)}>Take Photo</button>
                             )}
-                        </>
+                        </div>
                     )}
-                    <button type="submit" className="bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700 transition-all duration-200 mt-4" disabled={submitting}>{submitting ? 'Adding...' : 'Add Participant'}</button>
+                    <button type="submit" className="bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700 transition-all duration-200" disabled={submitting}>{submitting ? 'Adding...' : 'Add Participant'}</button>
                 </form>
                 {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             </div>
@@ -227,7 +156,7 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
     );
 };
 
-// ParticipantMarquee Component
+// Replace the marquee/scrolling participant images with a fixed-width, auto-rotating carousel
 const ParticipantMarquee = ({ participants }) => {
     if (!participants || participants.length === 0) {
         return (
@@ -247,10 +176,11 @@ const ParticipantMarquee = ({ participants }) => {
 
     // Duplicate the list for seamless looping
     const display = participants.concat(participants);
+    // Calculate animation duration based on number of participants (longer for more)
     const duration = Math.max(10, participants.length * 1.5); // seconds
 
     return (
-        <div className="overflow-hidden w-full flex items-center justify-center bg-gradient-to-r from-yellow-100 via-orange-50 to-pink-100 rounded-xl shadow-lg" style={{ height: 540, maxWidth: 950, margin: '0 auto' }}>
+        <div className="overflow-hidden w-full flex items-center justify-center bg-gradient-to-r from-yellow-100 via-orange-50 to-pink-100 rounded-xl shadow-lg" style={{ height: 140, maxWidth: 950, margin: '0 auto' }}>
             <div
                 className="flex flex-row gap-4"
                 style={{
@@ -261,28 +191,15 @@ const ParticipantMarquee = ({ participants }) => {
                 {display.map((participant, idx) => (
                     <div
                         key={`${participant._id}-${idx}`} // Combine _id with index for uniqueness
-                        className="bg-white bg-opacity-80 rounded-xl shadow-xl flex flex-col items-center justify-end w-64 h-72 min-w-[96px] mx-2 border-2 border-transparent hover:border-yellow-400 hover:shadow-2xl hover:scale-105 transition-all duration-300 animate-fade-in-up overflow-hidden relative"
+                        className="bg-white bg-opacity-80 rounded-xl shadow-xl flex flex-col items-center justify-end w-24 h-36 min-w-[96px] mx-2 border-2 border-transparent hover:border-yellow-400 hover:shadow-2xl hover:scale-105 transition-all duration-300 animate-fade-in-up overflow-hidden relative"
                         style={{ animationDelay: `${(idx % participants.length) * 0.1}s` }}
                     >
-                        {participant.photo ? (
-                            <img
-                                src={participant.photo.startsWith('http') ? participant.photo : participant.photo}
-                                alt={participant.name}
-                                className="absolute top-0 left-0 w-full h-full object-cover z-0"
-                                onError={(e) => {
-                                    console.error('Image load error:', e);
-                                    // Handle the image error by displaying the emoji
-                                    const emojiContainer = document.getElementById(`emoji-${participant._id}`);
-                                    if (emojiContainer) {
-                                        emojiContainer.style.display = 'flex'; // Show the emoji container
-                                    }
-                                }}
-                            />
-                        ) : (
-                            <div id={`emoji-${participant._id}`} className="absolute top-0 left-0 w-full h-full flex items-center justify-center text-8xl z-0 bg-gradient-to-br from-yellow-100 to-orange-50">
-                                <span role="img" aria-label="participant-emoji">{participant.emoji || '😀'}</span>
-                            </div>
-                        )}
+                        <img
+                            src={participant.photo}
+                            alt={participant.name}
+                            className="absolute top-0 left-0 w-full h-full object-cover z-0"
+                            onError={e => { e.target.onerror = null; e.target.src = gurshaLogo; }}
+                        />
                         <div className="w-full absolute bottom-0 left-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1 z-10">
                             <div className="font-bold text-orange-100 text-center text-sm truncate w-full drop-shadow-sm">
                                 {participant.name || 'Participant'}
@@ -314,41 +231,26 @@ const GameDashboard = () => {
     const [showHaltModal, setShowHaltModal] = useState(false);
     const [haltLoading, setHaltLoading] = useState(false);
 
+    // Wrap fetchParticipants in useCallback
     const fetchParticipants = useCallback(() => {
         if (gameId) {
             getParticipants(gameId).then(setParticipants).catch(() => setParticipants([]));
         }
-    }, [gameId]);
+    }, [gameId]); // Add gameId as a dependency
 
     useEffect(() => {
         if (gameId) {
             getGameById(gameId).then(setGame);
             fetchParticipants();
         }
-    }, [gameId, fetchParticipants]);
+    }, [gameId, fetchParticipants]); // Include fetchParticipants in the dependency array
 
-    const handleParticipantAdded = async (participant) => {
-        await fetchParticipants(); // Re-fetch participants
-        if (gameId) {
-            const updatedGame = await getGameById(gameId); // Re-fetch game details
-            console.log('Updated Game:', updatedGame); // Log the updated game object
-            setGame(updatedGame); // Update game state with the latest data
-        }
-        if (participant) {
-            setCurrentParticipant(participant);
-            setShowParticipantAnimation(true);
-            const audio = new Audio('/sounds/welcome-good-luck.mp3');
-            audio.play();
-            setTimeout(() => {
-                setShowParticipantAnimation(false);
-            }, 10000);
-        }
-    };
-
+    // Draw Winner logic
     const handleDrawWinner = () => {
         navigate(`/draw-winner/${gameId}`);
     };
 
+    // Halt Game logic
     const handleHaltGame = () => {
         setShowHaltModal(true);
     };
@@ -372,11 +274,29 @@ const GameDashboard = () => {
         }
     };
 
+    const handleParticipantAdded = (participant) => {
+        fetchParticipants();
+        if (gameId) {
+            getGameById(gameId).then(setGame);
+        }
+        if (participant) {
+            setCurrentParticipant(participant);
+            setShowParticipantAnimation(true);
+            // Play welcome audio
+            const audio = new Audio('/sounds/welcome-good-luck.mp3');
+            audio.play();
+            setTimeout(() => {
+                setShowParticipantAnimation(false);
+            }, 10000);
+        }
+    };
+
     return (
         <div className="flex min-h-screen bg-gray-100">
             {/* Sidebar */}
             <div className="bg-gradient-to-r from-orange-400 to-yellow-500 w-64 min-w-[12rem] max-w-xs flex flex-col items-center py-6 shadow-lg animate-fade-in-left overflow-x-auto">
                 <img src={gurshaLogo} alt="Gursha Logo" className="h-32 mb-0 animate-fade-in-up" />
+                {/* Back button */}
                 <button className="mb-4 w-fit bg-gray-200 hover:bg-gray-300 text-gray-700 px-1 py-0 rounded font-semibold transition-all duration-200" onClick={() => navigate('/gamecontrollerdashboard')}>
                     &larr;
                 </button>
@@ -389,12 +309,13 @@ const GameDashboard = () => {
                             ተወዳዳሪ ብዛት: {participants.length}
                         </span>
                     </div>
-
-                    {/* Use PrizeDisplay Component Here */}
-                    <PrizeDisplay prizeAmount={game?.totalCollected ? Math.floor(game.totalCollected * 0.7) : 0} />
-
+                    <div className="w-full text-center py-2 border rounded mb-2 bg-white animate-fade-in-up delay-300 overflow-hidden">
+                        <span className={`font-medium ${game?.prize?.amount?.toString().length > 5 ? 'text-sm' : 'text-base'} truncate w-full block`} title={game?.prize?.amount ? `ሽልማት፡ ${Math.floor(game.prize.amount)} ብር` : 'Award'}>
+                            {game?.prize?.amount ? `የሽልማት መጠን፡ ${Math.floor(game.prize.amount)} ብር` : 'ሽልማት የለም'}
+                        </span>
+                    </div>
                     <div className="w-24 h-24 rounded-full border flex items-center justify-center text-lg font-bold mt-4 bg-white animate-fade-in-up delay-400 overflow-hidden">
-                        <span className="truncate w-full text-center" title={game?.entranceFee ? `በ ${game.entranceFee} ብር` : ''}>{game?.entranceFee ? `በ ${game.entranceFee} ብር` : 'No Entrance Fee'}</span>
+                        <span className="truncate w-full text-center" title={game?.entranceFee ? `በ ${game.entranceFee} ብር` : ''}>{game?.entranceFee ? `በ ${game.entranceFee} ብር` : ''}</span>
                     </div>
                 </div>
             </div>
@@ -403,12 +324,30 @@ const GameDashboard = () => {
             <div className="flex-1 flex flex-col p-8 animate-fade-in-up">
                 {/* Top bar above award image */}
                 <div className="flex justify-between items-center mb-4 w-full">
-                    <div className="text-xl font-bold capitalize">{game?.mealTime || 'መልካም ዕድል'}</div>
+                    <div className="text-xl font-bold capitalize">{game?.mealTime || 'Meal Time'}</div>
                     <div className="flex gap-2">
-                        <button className="bg-blue-600 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700 transition-all duration-200 animate-bounce-in" onClick={() => setShowAddModal(true)}>ተጫዋች አስገባ</button>
-                        <button className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition-all duration-200" onClick={handleDrawWinner} disabled={!participants.length}>ዕጣ አውጣ</button>
-                        <button className="bg-red-600 text-white px-4 py-2 rounded font-semibold hover:bg-red-700 transition-all duration-200" onClick={handleHaltGame}>ጨዋታ አቋርጥ</button>
+                        <button className="bg-blue-600 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700 transition-all duration-200 animate-bounce-in" onClick={() => setShowAddModal(true)}>Add Participant</button>
+                        <button className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition-all duration-200" onClick={handleDrawWinner} disabled={!participants.length}>Draw Winner</button>
+                        <button className="bg-red-600 text-white px-4 py-2 rounded font-semibold hover:bg-red-700 transition-all duration-200" onClick={handleHaltGame}>Halt Game</button>
                     </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow flex-1 flex flex-col items-center justify-center mb-6 animate-fade-in-up delay-200" style={{ maxHeight: 350 }}>
+                    {game && game.prize && game.prize.image ? (
+                        <img 
+                            src={game.prize.image.startsWith('http') ? game.prize.image : `${game.prize.image}`} 
+                            alt="Award" 
+                            className="h-full w-full object-fit animate-float" 
+                            style={{ maxHeight: '100%', maxWidth: '100%' }} 
+                            onError={e => { 
+                                console.error('Prize image load error:', e);
+                                e.target.onerror = null; 
+                                e.target.src = gurshaLogo; 
+                            }} 
+                        />
+                    ) : (
+                        <div className="text-lg text-gray-500">Award image</div>
+                    )}
                 </div>
 
                 {/* Marquee/scrolling participant images */}
@@ -446,26 +385,7 @@ const GameDashboard = () => {
                 )}
                 {showParticipantAnimation && currentParticipant && (
                     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-80 animate-fade-in">
-                        {currentParticipant.photo ? (
-                            <img 
-                                src={currentParticipant.photo.startsWith('http') ? currentParticipant.photo : currentParticipant.photo} 
-                                alt={currentParticipant.name} 
-                                className="w-48 h-48 rounded-full object-cover border-4 border-white mb-6" 
-                                onError={(e) => {
-                                    console.error('Participant animation image load error:', e);
-                                    // If the image fails to load, we'll show the emoji fallback
-                                    e.target.style.display = 'none';
-                                    const emojiContainer = e.target.nextElementSibling;
-                                    if (emojiContainer) {
-                                        emojiContainer.style.display = 'flex';
-                                    }
-                                }}
-                            />
-                        ) : (
-                            <div className="w-48 h-48 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 border-4 border-white mb-6 text-8xl">
-                                <span role="img" aria-label="participant-emoji">{currentParticipant.emoji || '😀'}</span>
-                            </div>
-                        )}
+                        <img src={currentParticipant.photo} alt={currentParticipant.name} className="w-48 h-48 rounded-full object-cover border-4 border-white mb-6" />
                         <div className="text-4xl text-white font-bold mb-2 animate-bounce">{currentParticipant.name}</div>
                         <div className="text-2xl text-yellow-200 font-semibold">Welcome to the game and good luck!</div>
                     </div>

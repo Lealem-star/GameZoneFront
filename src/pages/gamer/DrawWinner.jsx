@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getGameById, updateGame, getParticipants } from '../../services/api';
-// Add confetti import
 import Confetti from 'react-confetti';
+import PrizeDisplay from '../../components/PrizeDisplay'; // Adjust the import path as necessary
 
-const SPIN_DURATION = 30000; // 1 minute
-const WINNER_ANNOUNCE_DURATION = 30000; // 2 minutes
+const SPIN_DURATION = 30000; // 30 seconds
+const WINNER_ANNOUNCE_DURATION = 30000; // 10 seconds
 
 const DrawWinner = () => {
     const { gameId } = useParams();
@@ -16,7 +16,6 @@ const DrawWinner = () => {
     const [winner, setWinner] = useState(null);
     const spinTimeout = useRef(null);
     const showWinnerTimeout = useRef(null);
-    const [showConfetti, setShowConfetti] = useState(false);
     const [countdown, setCountdown] = useState(SPIN_DURATION / 1000);
     const tickingAudioRef = useRef(null);
     const celebrationAudioRef = useRef(null);
@@ -35,7 +34,6 @@ const DrawWinner = () => {
     useEffect(() => {
         if (participants.length === 0) return;
         setSpinning(true);
-        setShowConfetti(false);
         setCountdown(SPIN_DURATION / 1000);
         // Start ticking sound
         if (tickingAudioRef.current) {
@@ -50,7 +48,6 @@ const DrawWinner = () => {
             moveInterval = setInterval(() => {
                 setRandomPositions(
                     participants.map(() => {
-                        // Area: 0 to 90vw/500px, but keep inside bounds
                         const areaW = Math.min(window.innerWidth * 0.9, 500) - 64;
                         const areaH = Math.min(window.innerWidth * 0.9, 500) - 64;
                         const x = Math.random() * areaW;
@@ -76,7 +73,6 @@ const DrawWinner = () => {
             const winnerIdx = Math.floor(Math.random() * participants.length);
             setWinner(participants[winnerIdx]);
             setSpinning(false);
-            setShowConfetti(true);
             // Play celebration sound
             if (celebrationAudioRef.current) {
                 celebrationAudioRef.current.currentTime = 0;
@@ -86,7 +82,6 @@ const DrawWinner = () => {
             updateGame(gameId, { winner: participants[winnerIdx], status: 'completed' });
             // After WINNER_ANNOUNCE_DURATION, redirect back
             showWinnerTimeout.current = setTimeout(() => {
-                setShowConfetti(false);
                 navigate('/GameController');
             }, WINNER_ANNOUNCE_DURATION);
         }, SPIN_DURATION);
@@ -95,8 +90,11 @@ const DrawWinner = () => {
             clearTimeout(showWinnerTimeout.current);
             clearInterval(interval);
             if (moveInterval) clearInterval(moveInterval);
-            if (tickingAudioRef.current && !tickingAudioRef.current.paused) tickingAudioRef.current.pause();
-            if (celebrationAudioRef.current && !celebrationAudioRef.current.paused) celebrationAudioRef.current.pause();
+            // Store refs in variables to avoid the exhaustive-deps warning
+            const tickingAudio = tickingAudioRef.current;
+            const celebrationAudio = celebrationAudioRef.current;
+            if (tickingAudio && !tickingAudio.paused) tickingAudio.pause();
+            if (celebrationAudio && !celebrationAudio.paused) celebrationAudio.pause();
         };
     }, [participants, gameId, navigate]);
 
@@ -105,14 +103,12 @@ const DrawWinner = () => {
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-yellow-100 via-orange-100 to-pink-100 relative overflow-hidden">
-            {/* Audio elements for suspense and celebration */}
             <audio ref={tickingAudioRef} src="/sounds/ticking.mp3" loop preload="auto" />
             <audio ref={celebrationAudioRef} src="/sounds/celebration.mp3" preload="auto" />
-            {/* Countdown timer on the right */}
             {spinning && (
                 <div className="fixed top-8 right-8 z-20 flex flex-col items-center bg-white bg-opacity-80 rounded-lg shadow-lg px-8 py-6 animate-fade-in-up">
                     <span className="text-4xl md:text-6xl font-extrabold text-orange-600 drop-shadow-lg">{countdown}</span>
-                    <span className="text-lg font-semibold text-gray-700 mt-2">Seconds Left</span>
+                    <span className="text-lg font-semibold text-gray-700 mt-2">ቀረው</span>
                 </div>
             )}
             {/* Winner Full-Screen Announcement */}
@@ -120,19 +116,36 @@ const DrawWinner = () => {
                 <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-90 animate-fade-in">
                     <Confetti width={window.innerWidth} height={window.innerHeight} numberOfPieces={500} recycle={true} />
                     <div className="flex flex-col items-center">
-                        <img src={winner.photo || '/default-avatar.png'} alt={winner.name} className="w-48 h-48 md:w-64 md:h-64 rounded-full object-cover border-8 border-yellow-400 shadow-2xl mb-6 animate-bounce" />
+                        {winner.photo ? (
+                            <img 
+                                src={winner.photo.startsWith('http') ? winner.photo : winner.photo} 
+                                alt={winner.name} 
+                                className="w-48 h-48 md:w-64 md:h-64 rounded-full object-cover border-8 border-yellow-400 shadow-2xl mb-6 animate-bounce" 
+                                onError={(e) => {
+                                    console.error('Winner image load error:', e);
+                                    // If the image fails to load, show a default emoji
+                                    e.target.style.display = 'none';
+                                    e.target.parentNode.innerHTML = `<div class="w-48 h-48 md:w-64 md:h-64 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 border-8 border-yellow-400 shadow-2xl mb-6 animate-bounce text-8xl">${winner.emoji || '🏆'}</div>`;
+                                }}
+                            />
+                        ) : (
+                            <div className="w-48 h-48 md:w-64 md:h-64 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 border-8 border-yellow-400 shadow-2xl mb-6 animate-bounce text-8xl">
+                                <span role="img" aria-label="winner-emoji">{winner.emoji || '🏆'}</span>
+                            </div>
+                        )}
                         <div className="text-5xl md:text-6xl font-extrabold text-yellow-300 mb-4 drop-shadow-lg animate-bounce">{winner.name}</div>
                         <div className="text-3xl md:text-4xl text-green-300 font-bold mb-2 animate-pulse">Congratulations!</div>
-                        <div className="text-xl text-white font-medium">You are the winner!</div>
+                        <div className="text-xl text-white font-medium">አሸናፊያችን እንኳን ደስ ያለህ!</div>
+                        {/* Prize Display */}
+                        <PrizeDisplay prizeAmount={game?.totalCollected ? Math.floor(game.totalCollected * 0.7) : 0} />
                     </div>
                 </div>
             )}
             {/* Draw UI (hidden when winner is shown) */}
             {spinning && (
                 <>
-                    <h1 className="text-2xl md:text-4xl font-extrabold mb-4 text-orange-700 drop-shadow">Drawing Winner for: <span className="text-yellow-600">{game.name}</span></h1>
+                    <h1 className="text-2xl md:text-4xl font-extrabold mb-4 text-orange-700 drop-shadow">የ<span className="text-yellow-600">{game.name} አሸናፊ...</span></h1>
                     <div className="relative w-[90vw] max-w-[500px] h-[90vw] max-h-[500px] flex items-center justify-center">
-                        {/* Randomly moving participants while spinning */}
                         {participants.map((p, idx) => {
                             const pos = randomPositions[idx] || { x: 0, y: 0 };
                             return (
@@ -142,8 +155,8 @@ const DrawWinner = () => {
                                     style={{
                                         left: pos.x,
                                         top: pos.y,
-                                        width: 90,
-                                        height: 120,
+                                        width: 150,
+                                        height: 200,
                                         borderRadius: '12px',
                                         overflow: 'hidden',
                                         border: '3px solid #fff',
@@ -154,7 +167,23 @@ const DrawWinner = () => {
                                         boxShadow: '0 4px 16px rgba(0,0,0,0.15)'
                                     }}
                                 >
-                                    <img src={p.photo || '/default-avatar.png'} alt={p.name} className="w-full h-full object-cover" />
+                                    {p.photo ? (
+                                        <img 
+                                            src={p.photo.startsWith('http') ? p.photo : p.photo} 
+                                            alt={p.name} 
+                                            className="w-full h-full object-cover" 
+                                            onError={(e) => {
+                                                console.error('DrawWinner image load error:', e);
+                                                // If the image fails to load, show a default emoji
+                                                e.target.style.display = 'none';
+                                                e.target.parentNode.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 text-8xl">${p.emoji || '😀'}</div>`;
+                                            }}
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 text-8xl">
+                                            <span role="img" aria-label="participant-emoji">{p.emoji || '😀'}</span>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
@@ -168,4 +197,4 @@ const DrawWinner = () => {
     );
 };
 
-export default DrawWinner; 
+export default DrawWinner;
