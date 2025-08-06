@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getGameById, updateGame, getParticipants } from '../../services/api';
 import Confetti from 'react-confetti';
 import PrizeDisplay from '../../components/PrizeDisplay'; // Adjust the import path as necessary
@@ -10,6 +10,7 @@ const WINNER_ANNOUNCE_DURATION = 30000; // 10 seconds
 const DrawWinner = () => {
     const { gameId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const [game, setGame] = useState(null);
     const [participants, setParticipants] = useState([]);
     const [spinning, setSpinning] = useState(true);
@@ -23,25 +24,83 @@ const DrawWinner = () => {
 
     useEffect(() => {
         const fetchGameAndParticipants = async () => {
-            const g = await getGameById(gameId);
-            setGame(g);
-            const ps = await getParticipants(gameId);
-            setParticipants(ps || []);
+            try {
+                const g = await getGameById(gameId);
+                setGame(g);
+                
+                // Check if we have filtered participants from the NumberGuessingGame
+                if (location.state && location.state.filteredParticipants) {
+                    console.log('Using filtered participants from NumberGuessingGame:', location.state.filteredParticipants);
+                    setParticipants(location.state.filteredParticipants);
+                } else {
+                    // Fallback to fetching all participants if not coming from NumberGuessingGame
+                    const ps = await getParticipants(gameId);
+                    setParticipants(ps || []);
+                }
+            } catch (error) {
+                console.error('Error fetching game or participants:', error);
+                // Set default values to prevent crashes
+                if (!game) setGame({name: 'Game'});
+                if (participants.length === 0 && location.state && location.state.filteredParticipants) {
+                    setParticipants(location.state.filteredParticipants);
+                }
+            }
         };
         fetchGameAndParticipants();
-    }, [gameId]);
+    }, [gameId, location.state, game, participants.length]);
 
     useEffect(() => {
-        if (participants.length === 0) return;
+        // Safety check - if component is unmounting or not fully initialized, don't proceed
+        if (!gameId) return;
+        
+        // Handle case when there are no participants
+        if (participants.length === 0) {
+            // Show message and redirect back after a short delay
+            const redirectTimer = setTimeout(() => {
+                navigate('/GameController');
+            }, 3000);
+            return () => clearTimeout(redirectTimer);
+        }
+        
+        // Check if we should skip the drawing animation
+        if (location.state && location.state.skipDrawing && location.state.winner) {
+            // Skip drawing and immediately show the winner
+            setSpinning(false);
+            setWinner(location.state.winner);
+            
+            // Play celebration sound
+            if (celebrationAudioRef.current) {
+                celebrationAudioRef.current.currentTime = 0;
+                celebrationAudioRef.current.play().catch((error) => { 
+                    console.log('Audio play was prevented:', error);
+                });
+            }
+            
+            // After WINNER_ANNOUNCE_DURATION, redirect back
+            showWinnerTimeout.current = setTimeout(() => {
+                navigate('/GameController');
+            }, WINNER_ANNOUNCE_DURATION);
+            
+            return () => {
+                if (showWinnerTimeout.current) clearTimeout(showWinnerTimeout.current);
+            };
+        }
+        
+        // Normal drawing process
         setSpinning(true);
         setCountdown(SPIN_DURATION / 1000);
+        
         // Start ticking sound
         if (tickingAudioRef.current) {
             tickingAudioRef.current.currentTime = 0;
-            tickingAudioRef.current.play().catch(() => { });
+            tickingAudioRef.current.play().catch((error) => { 
+                console.log('Audio play was prevented:', error);
+            });
         }
+        
         // Initialize random positions
         setRandomPositions(participants.map(() => ({ x: 0, y: 0 })));
+        
         // Random movement interval
         let moveInterval = null;
         if (participants.length > 0) {
@@ -57,6 +116,7 @@ const DrawWinner = () => {
                 );
             }, 200);
         }
+        
         // Countdown interval
         const interval = setInterval(() => {
             setCountdown(prev => {
@@ -67,44 +127,85 @@ const DrawWinner = () => {
                 return prev - 1;
             });
         }, 1000);
+        
         // After SPIN_DURATION, pick a winner
         spinTimeout.current = setTimeout(() => {
-            if (tickingAudioRef.current && !tickingAudioRef.current.paused) tickingAudioRef.current.pause();
-            const winnerIdx = Math.floor(Math.random() * participants.length);
-            setWinner(participants[winnerIdx]);
-            setSpinning(false);
-            // Play celebration sound
-            if (celebrationAudioRef.current) {
-                celebrationAudioRef.current.currentTime = 0;
-                celebrationAudioRef.current.play().catch(() => { });
-            }
-            // Update backend to mark game as completed and set winner
-            updateGame(gameId, { winner: participants[winnerIdx], status: 'completed' });
-            // After WINNER_ANNOUNCE_DURATION, redirect back
-            showWinnerTimeout.current = setTimeout(() => {
+            try {
+                if (tickingAudioRef.current && !tickingAudioRef.current.paused) {
+                    tickingAudioRef.current.pause();
+                }
+                
+                // Safety check to ensure participants array is still valid
+                if (!participants || participants.length === 0) {
+                    console.error('No participants available when selecting winner');
+                    navigate('/GameController');
+                    return;
+                }
+                
+                const winnerIdx = Math.floor(Math.random() * participants.length);
+                const selectedWinner = participants[winnerIdx];
+                setWinner(selectedWinner);
+                setSpinning(false);
+                
+                // Play celebration sound
+                if (celebrationAudioRef.current) {
+                    celebrationAudioRef.current.currentTime = 0;
+                    celebrationAudioRef.current.play().catch((error) => {
+                        console.log('Celebration audio play was prevented:', error);
+                    });
+                }
+                
+                // Update backend to mark game as completed and set winner
+                updateGame(gameId, { winner: selectedWinner, status: 'completed' })
+                    .catch(error => {
+                        console.error('Error updating game with winner:', error);
+                    });
+                
+                // After WINNER_ANNOUNCE_DURATION, redirect back
+                showWinnerTimeout.current = setTimeout(() => {
+                    navigate('/GameController');
+                }, WINNER_ANNOUNCE_DURATION);
+            } catch (error) {
+                console.error('Error in winner selection process:', error);
+                // Fallback - return to game controller
                 navigate('/GameController');
-            }, WINNER_ANNOUNCE_DURATION);
+            }
         }, SPIN_DURATION);
+        
+        // Cleanup function
         return () => {
-            clearTimeout(spinTimeout.current);
-            clearTimeout(showWinnerTimeout.current);
+            if (spinTimeout.current) clearTimeout(spinTimeout.current);
+            if (showWinnerTimeout.current) clearTimeout(showWinnerTimeout.current);
             clearInterval(interval);
             if (moveInterval) clearInterval(moveInterval);
+            
             // Store refs in variables to avoid the exhaustive-deps warning
             const tickingAudio = tickingAudioRef.current;
             const celebrationAudio = celebrationAudioRef.current;
+            
             if (tickingAudio && !tickingAudio.paused) tickingAudio.pause();
             if (celebrationAudio && !celebrationAudio.paused) celebrationAudio.pause();
         };
-    }, [participants, gameId, navigate]);
+    }, [participants, gameId, navigate, location.state]);
 
     if (!game) return <div className="p-8 text-center">Loading game...</div>;
-    if (participants.length === 0) return <div className="p-8 text-center text-red-500">No participants to draw from.</div>;
+
+    // Show a message when there are no participants
+    if (participants.length === 0) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-yellow-100 via-orange-100 to-pink-100 relative overflow-hidden">
+                <div className="text-center p-8 bg-white bg-opacity-90 rounded-xl shadow-xl">
+                    <h2 className="text-3xl font-bold text-red-600 mb-4">No participants to draw from</h2>
+                    <p className="text-lg text-gray-700">Redirecting back to game controller...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-yellow-100 via-orange-100 to-pink-100 relative overflow-hidden">
-            <audio ref={tickingAudioRef} src="/sounds/ticking.mp3" loop preload="auto" />
-            <audio ref={celebrationAudioRef} src="/sounds/celebration.mp3" preload="auto" />
+            <audio ref={tickingAudioRef} src={encodeURI("/sounds/ticking.mp3")} loop preload="auto" />
+            <audio ref={celebrationAudioRef} src={encodeURI("/sounds/celebration.mp3")} preload="auto" />
             {spinning && (
                 <div className="fixed top-8 right-8 z-20 flex flex-col items-center bg-white bg-opacity-80 rounded-lg shadow-lg px-8 py-6 animate-fade-in-up">
                     <span className="text-4xl md:text-6xl font-extrabold text-orange-600 drop-shadow-lg">{countdown}</span>

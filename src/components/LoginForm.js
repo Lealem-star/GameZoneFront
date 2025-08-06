@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login, testServer } from '../services/authService';
+import { getDeviceId, getDeviceName } from '../utils/deviceUtils';
 import logo from '../assets/gurshalogo.png';
 
 const LoginForm = () => {
@@ -49,8 +50,21 @@ const LoginForm = () => {
 
     try {
       console.log('🔄 Starting login process...');
+      
+      // Get device information
+      const deviceId = getDeviceId();
+      const deviceName = getDeviceName();
+      
+      // Add device info to login request
+      const loginData = {
+        ...formData,
+        deviceInfo: {
+          deviceId,
+          deviceName
+        }
+      };
 
-      const response = await login(formData);
+      const response = await login(loginData);
       console.log('✅ Login response:', response);
 
       // Save token and user info in local storage
@@ -72,6 +86,21 @@ const LoginForm = () => {
       }
     } catch (error) {
       console.error('💥 Login error:', error);
+      
+      // Check if the error is related to package depletion
+      if (error.message && error.message.includes('Package depleted')) {
+        // Redirect to package depleted page
+        navigate('/package-depleted');
+        return;
+      }
+      
+      // Check if the error is related to maximum devices reached
+      if (error.response && error.response.status === 403 && error.response.data.maxDevicesReached) {
+        // Redirect to max devices reached page
+        navigate('/max-devices-reached');
+        return;
+      }
+      
       setError(error.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);

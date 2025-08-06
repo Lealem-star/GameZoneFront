@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import gurshaLogo from '../../assets/gurshalogo.png';
-import { getParticipants, getGameById, createParticipant, deleteGame } from '../../services/api';
+import { getParticipants, getGameById, createParticipant, deleteGame, getAllParticipants } from '../../services/api';
 import PrizeDisplay from '../../components/PrizeDisplay'; // Import the PrizeDisplay component
 
 // Toast notification component
@@ -28,10 +28,14 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
     const [capturedImage, setCapturedImage] = useState(null);
     const [emoji, setEmoji] = useState('😀'); // Default emoji
     const [useEmoji, setUseEmoji] = useState(false); // Toggle between photo and emoji
+    const [suggestions, setSuggestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const streamRef = useRef(null);
+    const nameInputRef = useRef(null);
     const [toast, setToast] = useState(null);
+    const [recentParticipants, setRecentParticipants] = useState([]);
 
     useEffect(() => {
         if (showCamera && videoRef.current) {
@@ -54,12 +58,56 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
         };
     }, [showCamera]);
 
+    // Fetch all participants when modal opens to use for suggestions
+    useEffect(() => {
+        if (open) {
+            // Get all participants for autocomplete suggestions
+            getAllParticipants()
+                .then(data => {
+                    // Create a unique list of participant names
+                    const uniqueNames = [...new Set(data.map(p => p.name))];
+                    setRecentParticipants(uniqueNames);
+                })
+                .catch(err => console.error('Error fetching participants for suggestions:', err));
+        }
+    }, [open]);
+    
     useEffect(() => {
         if (toast) {
             const timeout = setTimeout(() => setToast(null), 3500);
             return () => clearTimeout(timeout);
         }
     }, [toast]);
+    
+    // Handle name input changes and show suggestions
+    const handleNameChange = (e) => {
+        const value = e.target.value;
+        setName(value);
+        
+        if (value.length > 0) {
+            // Filter suggestions based on input
+            const filtered = recentParticipants.filter(p => 
+                p.toLowerCase().includes(value.toLowerCase())
+            );
+            setSuggestions(filtered);
+            setShowSuggestions(filtered.length > 0);
+        } else {
+            setSuggestions([]);
+            setShowSuggestions(false);
+        }
+    };
+    
+    // Handle suggestion selection
+    const handleSelectSuggestion = (suggestion) => {
+        // Set the name state with the full suggestion
+        setName(suggestion);
+        // Update the input value directly to ensure it's set correctly
+        if (nameInputRef.current) {
+            nameInputRef.current.value = suggestion;
+        }
+        // Hide suggestions immediately
+        setShowSuggestions(false);
+    };
 
     const handleCapture = () => {
         const video = videoRef.current;
@@ -146,7 +194,35 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
                 <button className="absolute top-2 right-2 text-gray-400 hover:text-red-500 hover:rotate-90 transition-all duration-300" onClick={onClose}>&times;</button>
                 <h2 className="text-xl font-bold mb-4">Add Participant</h2>
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                    <input type="text" placeholder="Name" value={name} onChange={e => setName(e.target.value)} required className="border p-2 rounded" />
+                    <div className="relative">
+                        <input 
+                            type="text" 
+                            placeholder="Name" 
+                            value={name} 
+                            onChange={handleNameChange} 
+                            onFocus={() => name.length > 0 && setSuggestions(recentParticipants.filter(p => p.toLowerCase().includes(name.toLowerCase())))} 
+                            onBlur={() => setTimeout(() => setShowSuggestions(false), 300)} 
+                            required 
+                            className="border p-2 rounded w-full" 
+                            ref={nameInputRef}
+                        />
+                        {showSuggestions && suggestions.length > 0 && (
+                            <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                {suggestions.map((suggestion, index) => (
+                                    <div 
+                                        key={index} 
+                                        className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                        onMouseDown={(e) => {
+                                            e.preventDefault(); // Prevent blur event from firing before click
+                                            handleSelectSuggestion(suggestion);
+                                        }}
+                                    >
+                                        {suggestion}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                     
                     <div className="flex justify-between items-center mb-2">
                         <span className="text-lg font-medium">Choose representation:</span>
@@ -305,14 +381,16 @@ const ParticipantMarquee = ({ participants }) => {
 const GameDashboard = () => {
     const { gameId } = useParams();
     const navigate = useNavigate();
-    const [participants, setParticipants] = useState([]);
     const [game, setGame] = useState(null);
+    const [participants, setParticipants] = useState([]);
     const [showAddModal, setShowAddModal] = useState(false);
-    const [currentParticipant, setCurrentParticipant] = useState(null);
-    const [showParticipantAnimation, setShowParticipantAnimation] = useState(false);
-    const [toast, setToast] = useState(null);
     const [showHaltModal, setShowHaltModal] = useState(false);
     const [haltLoading, setHaltLoading] = useState(false);
+    const [toast, setToast] = useState(null);
+    const [showParticipantAnimation, setShowParticipantAnimation] = useState(false);
+    const [currentParticipant, setCurrentParticipant] = useState(null);
+    const tickingAudioRef = useRef(null);
+    const [isPlaying, setIsPlaying] = useState(false);
 
     const fetchParticipants = useCallback(() => {
         if (gameId) {
@@ -326,6 +404,20 @@ const GameDashboard = () => {
             fetchParticipants();
         }
     }, [gameId, fetchParticipants]);
+    
+    // Auto-play background music when component mounts
+    useEffect(() => {
+        // Don't attempt to autoplay on initial load
+        // Audio will be played when user clicks the play button
+        setIsPlaying(false);
+            
+        return () => {
+            if (tickingAudioRef.current) {
+                tickingAudioRef.current.pause();
+                tickingAudioRef.current.currentTime = 0;
+            }
+        };
+    }, []);
 
     const handleParticipantAdded = async (participant) => {
         await fetchParticipants(); // Re-fetch participants
@@ -337,8 +429,10 @@ const GameDashboard = () => {
         if (participant) {
             setCurrentParticipant(participant);
             setShowParticipantAnimation(true);
-            const audio = new Audio('/sounds/welcome-good-luck.mp3');
-            audio.play();
+            const audio = new Audio(encodeURI('/sounds/welcome-good-luck.mp3'));
+            audio.play().catch(error => {
+                console.log('Welcome audio play was prevented:', error);
+            });
             setTimeout(() => {
                 setShowParticipantAnimation(false);
             }, 10000);
@@ -346,7 +440,24 @@ const GameDashboard = () => {
     };
 
     const handleDrawWinner = () => {
-        navigate(`/draw-winner/${gameId}`);
+        // Play background music before navigating
+        if (tickingAudioRef.current) {
+            tickingAudioRef.current.loop = true;
+            tickingAudioRef.current.play()
+                .then(() => {
+                    // Navigate after a short delay to ensure the sound starts playing
+                    setTimeout(() => {
+                        navigate(`/number-game/${gameId}`);
+                    }, 500);
+                })
+                .catch(error => {
+                    console.log('Audio play before navigation was prevented:', error);
+                    // Navigate anyway if audio fails
+                    navigate(`/number-game/${gameId}`);
+                });
+        } else {
+            navigate(`/number-game/${gameId}`);
+        }
     };
 
     const handleHaltGame = () => {
@@ -374,6 +485,47 @@ const GameDashboard = () => {
 
     return (
         <div className="flex min-h-screen bg-gray-100">
+            {/* Audio element for background music */}
+            <audio ref={tickingAudioRef} src={encodeURI("/sounds/tsehay.mp3")} preload="auto" />
+            
+            {/* Audio control button */}
+            <button 
+                onClick={() => {
+                    if (isPlaying) {
+                        tickingAudioRef.current.pause();
+                        setIsPlaying(false);
+                    } else {
+                        tickingAudioRef.current.play()
+                            .then(() => {
+                                setIsPlaying(true);
+                            })
+                            .catch(error => {
+                                console.log('Audio play was prevented:', error);
+                                setIsPlaying(false);
+                            });
+                    }
+                }}
+                className="fixed top-4 right-4 z-50 bg-orange-500 hover:bg-orange-600 text-white rounded-lg px-4 py-2 shadow-xl transition-all duration-200 border-2 border-white flex items-center gap-2"
+                title={isPlaying ? "Pause Music" : "Play Music"}
+            >
+                {isPlaying ? (
+                    <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="font-medium">Pause Music</span>
+                    </>
+                ) : (
+                    <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="font-medium">Play Music</span>
+                    </>
+                )}
+            </button>
+            
             {/* Sidebar */}
             <div className="bg-gradient-to-r from-orange-400 to-yellow-500 w-64 min-w-[12rem] max-w-xs flex flex-col items-center py-6 shadow-lg animate-fade-in-left overflow-x-auto">
                 <img src={gurshaLogo} alt="Gursha Logo" className="h-32 mb-0 animate-fade-in-up" />

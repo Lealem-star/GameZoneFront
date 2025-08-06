@@ -41,7 +41,7 @@ const SignUp = () => {
       const controllerData = {
         username: formData.username,
         password: formData.password,
-        role: 'controller'
+        role: 'gameController'
       };
 
       await createGameController(controllerData);

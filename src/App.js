@@ -6,7 +6,12 @@ import GameControllerDashboard from './pages/gamer/GameControllerDashboard';
 import GameDashboard from './pages/gamer/GameDashboard';
 import GameControllerDetail from './pages/admin/GameControllerDetail';
 import DrawWinner from './pages/gamer/DrawWinner';
+import NumberGuessingGame from './pages/gamer/NumberGuessingGame';
+import PackageDepleted from './components/PackageDepleted';
+import DeviceManager from './components/DeviceManager';
+import MaxDevicesReached from './components/MaxDevicesReached';
 import { AuthProvider } from './context/AuthContext';
+import NetworkStatus from './components/NetworkStatus';
 
 const App = () => {
   return (
@@ -19,8 +24,13 @@ const App = () => {
           <Route path="/game/:gameId" element={<GameDashboard />} />
           <Route path="/gamecontrollerdashboard" element={<GameControllerDashboard />} />
           <Route path="/gameControllerDetail/:id" element={<GameControllerDetail />} />
+          <Route path="/number-game/:gameId" element={<NumberGuessingGame />} />
           <Route path="/draw-winner/:gameId" element={<DrawWinner />} />
+          <Route path="/package-depleted" element={<PackageDepleted />} />
+          <Route path="/manage-devices" element={<DeviceManager />} />
+          <Route path="/max-devices-reached" element={<MaxDevicesReached />} />
         </Routes>
+        <NetworkStatus />
       </Router>
     </AuthProvider>
   );

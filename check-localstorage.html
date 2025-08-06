@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check localStorage</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>localStorage Contents</h1>
+    <pre id="output">Loading...</pre>
+
+    <script>
+        window.onload = function() {
+            try {
+                const output = document.getElementById('output');
+                const localStorageObj = {};
+                
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    localStorageObj[key] = localStorage.getItem(key);
+                }
+                
+                output.textContent = JSON.stringify(localStorageObj, null, 2);
+            } catch (error) {
+                document.getElementById('output').textContent = 'Error: ' + error.message;
+            }
+        };
+    </script>
+</body>
+</html>

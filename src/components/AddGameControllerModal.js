@@ -8,7 +8,9 @@ const AddGameControllerModal = ({ isOpen, onClose, onSuccess }) => {
         confirmPassword: '',
         location: '',
         restaurantName: '',
-        phoneNumber: ''
+        phoneNumber: '',
+        isUnlimited: true,
+        packageAmount: ''
     });
     const [selectedImage, setSelectedImage] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
@@ -82,6 +84,12 @@ const AddGameControllerModal = ({ isOpen, onClose, onSuccess }) => {
             formDataToSend.append('location', formData.location);
             formDataToSend.append('restaurantName', formData.restaurantName);
             formDataToSend.append('phoneNumber', formData.phoneNumber);
+            formDataToSend.append('isUnlimited', formData.isUnlimited);
+            
+            // Only append packageAmount if it's not unlimited
+            if (!formData.isUnlimited && formData.packageAmount) {
+                formDataToSend.append('packageAmount', formData.packageAmount);
+            }
 
             if (selectedImage) {
                 formDataToSend.append('image', selectedImage);
@@ -102,7 +110,9 @@ const AddGameControllerModal = ({ isOpen, onClose, onSuccess }) => {
                 confirmPassword: '',
                 location: '',
                 restaurantName: '',
-                phoneNumber: ''
+                phoneNumber: '',
+                isUnlimited: true,
+                packageAmount: ''
             });
             setSelectedImage(null);
             setImagePreview(null);
@@ -252,6 +262,66 @@ const AddGameControllerModal = ({ isOpen, onClose, onSuccess }) => {
 
                     <div className="mb-4">
                         <label className="block text-gray-700 text-sm font-bold mb-2">
+                            Package Type
+                        </label>
+                        <div className="flex items-center space-x-4">
+                            <label className="inline-flex items-center">
+                                <input
+                                    type="radio"
+                                    name="isUnlimited"
+                                    checked={formData.isUnlimited}
+                                    onChange={() => setFormData({...formData, isUnlimited: true})}
+                                    className="form-radio h-4 w-4 text-blue-600"
+                                    disabled={loading}
+                                />
+                                <span className="ml-2">Unlimited</span>
+                            </label>
+                            <label className="inline-flex items-center">
+                                <input
+                                    type="radio"
+                                    name="isUnlimited"
+                                    checked={!formData.isUnlimited}
+                                    onChange={() => setFormData({...formData, isUnlimited: false})}
+                                    className="form-radio h-4 w-4 text-blue-600"
+                                    disabled={loading}
+                                />
+                                <span className="ml-2">Limited</span>
+                            </label>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                            Choose "Unlimited" for no restrictions or "Limited" to set a specific package amount in ETB.
+                        </p>
+                    </div>
+
+                    {!formData.isUnlimited && (
+                        <div className="mb-4">
+                            <label className="block text-gray-700 text-sm font-bold mb-2">
+                                Package Amount (ETB)
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    name="packageAmount"
+                                    value={formData.packageAmount}
+                                    onChange={handleChange}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Enter amount in ETB"
+                                    required={!formData.isUnlimited}
+                                    min="1"
+                                    disabled={loading}
+                                />
+                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                    <span className="text-gray-500">ETB</span>
+                                </div>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                                This amount will be reduced by system revenue (10% of entrance fee) for each game created.
+                            </p>
+                        </div>
+                    )}
+
+                    <div className="mb-4">
+                        <label className="block text-gray-700 text-sm font-bold mb-2">
                             Controller Image (Optional)
                         </label>
                         <input
@@ -315,4 +385,4 @@ const AddGameControllerModal = ({ isOpen, onClose, onSuccess }) => {
     );
 };
 
-export default AddGameControllerModal; 
+export default AddGameControllerModal;
