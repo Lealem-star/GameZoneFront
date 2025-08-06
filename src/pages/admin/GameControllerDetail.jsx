@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { FaDollarSign, FaCalendarAlt, FaGamepad, FaUsers, FaTrophy, FaGift } from 'react-icons/fa';
+import { getFormattedImageUrl, handleImageError } from '../../utils/imageUtils';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
@@ -99,7 +100,12 @@ const GameControllerDetail = () => {
                         <div className="flex items-center gap-6 bg-gray-50 rounded-lg p-4 border border-gray-200 w-fit animate-fade-in-left">
                             <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
                                 {controller.image ? (
-                                    <img src={`http://localhost:5000${controller.image}`} alt={controller.username} className="w-full h-full object-cover" />
+                                    <img 
+                                        src={getFormattedImageUrl(controller.image)} 
+                                        alt={controller.username} 
+                                        className="w-full h-full object-cover" 
+                                        onError={(e) => handleImageError(e, controller.username?.charAt(0).toUpperCase() || '?', 'text-4xl text-gray-500 font-bold')}
+                                    />
                                 ) : (
                                     <span className="text-4xl text-gray-500 font-bold">{controller.username?.charAt(0).toUpperCase()}</span>
                                 )}
@@ -167,4 +173,4 @@ const GameControllerDetail = () => {
     );
 };
 
-export default GameControllerDetail; 
+export default GameControllerDetail;

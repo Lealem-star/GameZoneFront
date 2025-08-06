@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getGameById, getParticipants, updateGame } from '../../services/api';
+import { getFormattedImageUrl, handleImageError } from '../../utils/imageUtils';
 import PrizeDisplay from '../../components/PrizeDisplay';
 
 const NumberGuessingGame = () => {
@@ -311,7 +312,7 @@ const NumberGuessingGame = () => {
                                     <div className="flex items-center space-x-3">
                                         {participant.photo ? (
                                             <img
-                                                src={participant.photo.startsWith('http') ? participant.photo : participant.photo}
+                                                src={participant.photo.startsWith('http') ? participant.photo : `${process.env.REACT_APP_API_BASE_URL.replace('/api', '')}${participant.photo}`}
                                                 alt={participant.name}
                                                 className="w-12 h-12 rounded-full object-cover border-2 border-orange-300"
                                                 onError={(e) => {

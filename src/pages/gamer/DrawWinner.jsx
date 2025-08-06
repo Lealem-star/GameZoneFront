@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getGameById, updateGame, getParticipants } from '../../services/api';
+import { getFormattedImageUrl, handleImageError } from '../../utils/imageUtils';
 import Confetti from 'react-confetti';
 import PrizeDisplay from '../../components/PrizeDisplay'; // Adjust the import path as necessary
 
@@ -219,14 +220,17 @@ const DrawWinner = () => {
                     <div className="flex flex-col items-center">
                         {winner.photo ? (
                             <img 
-                                src={winner.photo.startsWith('http') ? winner.photo : winner.photo} 
+                                src={getFormattedImageUrl(winner.photo)} 
                                 alt={winner.name} 
                                 className="w-48 h-48 md:w-64 md:h-64 rounded-full object-cover border-8 border-yellow-400 shadow-2xl mb-6 animate-bounce" 
                                 onError={(e) => {
                                     console.error('Winner image load error:', e);
                                     // If the image fails to load, show a default emoji
                                     e.target.style.display = 'none';
-                                    e.target.parentNode.innerHTML = `<div class="w-48 h-48 md:w-64 md:h-64 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 border-8 border-yellow-400 shadow-2xl mb-6 animate-bounce text-8xl">${winner.emoji || '🏆'}</div>`;
+                                    const fallbackElement = document.createElement('div');
+                                    fallbackElement.className = "w-48 h-48 md:w-64 md:h-64 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 border-8 border-yellow-400 shadow-2xl mb-6 animate-bounce text-8xl";
+                                    fallbackElement.innerHTML = `<span role="img" aria-label="winner-emoji">${winner.emoji || '🏆'}</span>`;
+                                    e.target.parentNode.appendChild(fallbackElement);
                                 }}
                             />
                         ) : (
@@ -270,14 +274,17 @@ const DrawWinner = () => {
                                 >
                                     {p.photo ? (
                                         <img 
-                                            src={p.photo.startsWith('http') ? p.photo : p.photo} 
+                                            src={getFormattedImageUrl(p.photo)} 
                                             alt={p.name} 
                                             className="w-full h-full object-cover" 
                                             onError={(e) => {
                                                 console.error('DrawWinner image load error:', e);
                                                 // If the image fails to load, show a default emoji
                                                 e.target.style.display = 'none';
-                                                e.target.parentNode.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 text-8xl">${p.emoji || '😀'}</div>`;
+                                                const fallbackElement = document.createElement('div');
+                                                fallbackElement.className = "w-full h-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 text-8xl";
+                                                fallbackElement.innerHTML = `<span role="img" aria-label="participant-emoji">${p.emoji || '😀'}</span>`;
+                                                e.target.parentNode.appendChild(fallbackElement);
                                             }}
                                         />
                                     ) : (

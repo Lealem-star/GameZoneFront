@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaTrophy, FaUsers, FaDollarSign, FaGamepad, FaCog, FaUserCircle, FaPlus, FaSignOutAlt } from 'react-icons/fa';
 import { getGames, createGame, getUserById, createParticipant, getGamesControllerById } from '../../services/api';
 import { logout } from '../../services/authService';
+import { getFormattedImageUrl, handleImageError } from '../../utils/imageUtils';
 import gurshaLogo from '../../assets/gurshalogo.png';
 import ParticipantForm from '../../components/ParticipantForm';
 
@@ -165,19 +166,9 @@ const Sidebar = () => {
           <FaUserCircle className="text-3xl" />
         ) : controller && controller.image ? (
           <img 
-            src={controller.image.startsWith('http') ? controller.image : `http://localhost:5000${controller.image}`} 
-            alt={controller.username} 
+            src={getFormattedImageUrl(controller.image)} 
             className="w-12 h-12 rounded-full object-cover border-2 border-white" 
-            onError={(e) => {
-              console.error('Error loading profile image:', e);
-              // Hide the broken image
-              e.target.style.display = 'none';
-              // Show a fallback icon
-              const fallbackIcon = document.createElement('span');
-              fallbackIcon.className = 'text-3xl';
-              fallbackIcon.innerHTML = '👤'; // Using an emoji as fallback
-              e.target.parentNode.appendChild(fallbackIcon);
-            }}
+            onError={(e) => handleImageError(e, '👤', 'text-3xl')}
           />
         ) : (
           <FaUserCircle className="text-3xl" />
@@ -587,14 +578,18 @@ const GameControllerDashboard = () => {
           <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-80 animate-fade-in">
             {currentParticipant.photo ? (
               <img 
-                src={currentParticipant.photo.startsWith('http') ? currentParticipant.photo : currentParticipant.photo} 
+                src={getFormattedImageUrl(currentParticipant.photo)} 
                 alt={currentParticipant.name} 
                 className="w-48 h-48 rounded-full object-cover border-4 border-white mb-6" 
                 onError={(e) => {
                   console.error('GameControllerDashboard animation image load error:', e);
                   // If the image fails to load, show a default emoji
                   e.target.style.display = 'none';
-                  e.target.parentNode.innerHTML = `<div class="w-48 h-48 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 border-4 border-white mb-6 text-8xl">${currentParticipant.emoji || '😀'}</div>`;
+                  // Create a fallback element with the participant's emoji or a default
+                  const fallbackElement = document.createElement('div');
+                  fallbackElement.className = "w-48 h-48 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 border-4 border-white mb-6 text-8xl";
+                  fallbackElement.innerHTML = `<span role="img" aria-label="participant-emoji">${currentParticipant.emoji || '😀'}</span>`;
+                  e.target.parentNode.appendChild(fallbackElement);
                 }}
               />
             ) : (

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import gurshaLogo from '../../assets/gurshalogo.png';
 import { getParticipants, getGameById, createParticipant, deleteGame, getAllParticipants } from '../../services/api';
+import { getFormattedImageUrl, handleImageError } from '../../utils/imageUtils';
 import PrizeDisplay from '../../components/PrizeDisplay'; // Import the PrizeDisplay component
 
 // Toast notification component
@@ -342,7 +343,7 @@ const ParticipantMarquee = ({ participants }) => {
                     >
                         {participant.photo ? (
                             <img
-                                src={participant.photo.startsWith('http') ? participant.photo : participant.photo}
+                                src={participant.photo.startsWith('http') ? participant.photo : `${process.env.REACT_APP_API_BASE_URL.replace('/api', '')}${participant.photo}`}
                                 alt={participant.name}
                                 className="absolute top-0 left-0 w-full h-full object-cover z-0"
                                 onError={(e) => {
@@ -600,7 +601,7 @@ const GameDashboard = () => {
                     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-80 animate-fade-in">
                         {currentParticipant.photo ? (
                             <img 
-                                src={currentParticipant.photo.startsWith('http') ? currentParticipant.photo : currentParticipant.photo} 
+                                src={currentParticipant.photo.startsWith('http') ? currentParticipant.photo : `${process.env.REACT_APP_API_BASE_URL.replace('/api', '')}${currentParticipant.photo}`} 
                                 alt={currentParticipant.name} 
                                 className="w-48 h-48 rounded-full object-cover border-4 border-white mb-6" 
                                 onError={(e) => {
