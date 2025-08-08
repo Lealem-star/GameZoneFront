@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaTrophy, FaUsers, FaDollarSign, FaGamepad, FaCog, FaUserCircle, FaPlus, FaSignOutAlt } from 'react-icons/fa';
 import { getGames, createGame, getUserById, createParticipant, getGamesControllerById } from '../../services/api';
 import { logout } from '../../services/authService';
-import { getFormattedImageUrl, handleImageError } from '../../utils/imageUtils';
+import { getFormattedImageUrl, handleImageError, checkImageExists } from '../../utils/imageUtils';
 import gurshaLogo from '../../assets/gurshalogo.png';
 import ParticipantForm from '../../components/ParticipantForm';
 
@@ -12,6 +12,7 @@ const Sidebar = () => {
   const [controller, setController] = useState(null);
   const [loading, setLoading] = useState(true);
   const [dailyRevenue, setDailyRevenue] = useState(0);
+  const [imageExists, setImageExists] = useState(false);
 
   useEffect(() => {
     const fetchController = async () => {
@@ -21,7 +22,7 @@ const Sidebar = () => {
         const key = localStorage.key(i);
         console.log(`${key}: ${localStorage.getItem(key)}`);
       }
-      
+
       const userId = localStorage.getItem('userId');
       const username = localStorage.getItem('username');
       const role = localStorage.getItem('role');
@@ -39,30 +40,44 @@ const Sidebar = () => {
         console.log('DEBUG - Calling getUserById with userId:', userId);
         const data = await getUserById(userId);
         console.log('DEBUG - Sidebar fetched user data:', data);
-        
+
         if (data) {
-          console.log('DEBUG - Setting controller with API data');
+          console.log('DEBUG - Setting controller with API data:', data);
+          console.log('DEBUG - Controller image:', data.image);
           setController(data);
-          
-          // Fetch daily revenue to calculate remaining package
-          try {
-            const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/admin/controllers/${userId}/revenue`, {
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-              }
-            });
-            const revenueData = await response.json();
-            setDailyRevenue(revenueData.dailySystemRevenue || 0); // Use system revenue instead of total revenue
-            console.log('DEBUG - Revenue data:', revenueData);
-            
-            // Check if package is depleted
-            if (data.package && !data.package.isUnlimited && data.package.remainingAmount <= 0) {
-              console.log('DEBUG - Package depleted, redirecting to package-depleted page');
-              navigate('/package-depleted');
-              return;
+
+          // Check if the controller image exists
+          if (data.image) {
+            const imageUrl = getFormattedImageUrl(data.image);
+            console.log('DEBUG - Formatted image URL:', imageUrl);
+            const exists = await checkImageExists(imageUrl);
+            console.log('DEBUG - Image exists:', exists);
+            setImageExists(exists);
+          } else {
+            console.log('DEBUG - No image in controller data');
+          }
+
+          // Only fetch daily revenue if user is admin
+          if (data.role === 'admin') {
+            try {
+              const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/admin/controllers/${userId}/revenue`, {
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+              });
+              const revenueData = await response.json();
+              setDailyRevenue(revenueData.dailySystemRevenue || 0); // Use system revenue instead of total revenue
+              console.log('DEBUG - Revenue data:', revenueData);
+            } catch (error) {
+              console.error('Error fetching daily revenue:', error);
             }
-          } catch (error) {
-            console.error('Error fetching daily revenue:', error);
+          }
+
+          // Check if package is depleted
+          if (data.package && !data.package.isUnlimited && data.package.remainingAmount <= 0) {
+            console.log('DEBUG - Package depleted, redirecting to package-depleted page');
+            navigate('/package-depleted');
+            return;
           }
         } else {
           console.warn('No controller data returned from API');
@@ -96,8 +111,25 @@ const Sidebar = () => {
         setLoading(false);
       }
     };
+    // Execute the async function
     fetchController();
   }, [navigate]);
+
+  // Add a separate useEffect to check image existence when controller changes
+  useEffect(() => {
+    const checkImage = async () => {
+      if (controller && controller.image) {
+        const imageUrl = getFormattedImageUrl(controller.image);
+        console.log('Checking image existence for:', imageUrl);
+        const exists = await checkImageExists(imageUrl);
+        console.log('Image exists check result:', exists);
+        setImageExists(exists);
+      } else {
+        setImageExists(false);
+      }
+    };
+    checkImage();
+  }, [controller]);
 
   const handleLogout = () => {
     logout(); // Use the logout function from authService
@@ -107,7 +139,7 @@ const Sidebar = () => {
   // Calculate remaining package amount
   const getRemainingPackage = () => {
     if (!controller || !controller.package) return null;
-    
+
     if (controller.package.isUnlimited) {
       return 'Unlimited';
     } else {
@@ -125,7 +157,7 @@ const Sidebar = () => {
             </div>
           </span>
         </div>
-        
+
         {/* Package Information */}
         {controller && controller.package && (
           <div className="mt-4 px-6 py-4 bg-yellow-600 rounded-lg mx-3 shadow-inner">
@@ -145,7 +177,7 @@ const Sidebar = () => {
             )}
           </div>
         )}
-        
+
         <nav className="mt-4 flex-1">
           <div className="uppercase text-xs text-blue-200 px-6 mt-6 mb-2">Settings</div>
           <ul>
@@ -165,13 +197,42 @@ const Sidebar = () => {
         {loading ? (
           <FaUserCircle className="text-3xl" />
         ) : controller && controller.image ? (
-          <img 
-            src={getFormattedImageUrl(controller.image)} 
-            className="w-12 h-12 rounded-full object-cover border-2 border-white" 
-            onError={(e) => handleImageError(e, '👤', 'text-3xl')}
-          />
+          <div className="relative w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+            <img
+              src={getFormattedImageUrl(controller.image)}
+              alt={`${controller.username || 'User'} profile`}
+              className="w-12 h-12 rounded-full object-cover border-2 border-white"
+              onError={(e) => {
+                console.log('Profile image failed to load:', controller.image);
+                console.log('Attempted URL:', e.target.src);
+
+                // Try alternative URL formats
+                const baseUrl = process.env.REACT_APP_API_BASE_URL.replace('/api', '');
+                const alternativeUrl = `${baseUrl}/uploads/${controller.image}`;
+
+                if (e.target.src !== alternativeUrl) {
+                  console.log('Trying alternative URL:', alternativeUrl);
+                  e.target.src = alternativeUrl;
+                  return; // Don't show fallback yet, let it try the alternative URL
+                }
+
+                // Use a more descriptive fallback with the user's initials if available
+                const initials = controller.username ? controller.username.charAt(0).toUpperCase() : '👤';
+                handleImageError(e, initials, 'text-3xl absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-gray-700');
+                setImageExists(false); // Update state to prevent future attempts
+              }}
+            />
+          </div>
         ) : (
-          <FaUserCircle className="text-3xl" />
+          <div className="relative w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
+            {controller && controller.username ? (
+              <span className="text-3xl absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-gray-700">
+                {controller.username.charAt(0).toUpperCase()}
+              </span>
+            ) : (
+              <FaUserCircle className="text-3xl" />
+            )}
+          </div>
         )}
         <div>
           {loading ? (
@@ -200,13 +261,13 @@ const CreateGameModal = ({ open, onClose, onGameCreated, games, transferParticip
   useEffect(() => {
     // Filter completed games that have participants
     if (games && games.length > 0) {
-      const completedWithParticipants = games.filter(g => 
+      const completedWithParticipants = games.filter(g =>
         g.winner && Array.isArray(g.participants) && g.participants.length > 0
       );
       setPreviousGames(completedWithParticipants);
     }
   }, [games]);
-  
+
   // Reset selectedGame when transferParticipants is toggled off
   useEffect(() => {
     if (!transferParticipants) {
@@ -229,14 +290,15 @@ const CreateGameModal = ({ open, onClose, onGameCreated, games, transferParticip
     try {
       // Create the new game
       const gameData = { name, mealTime, entranceFee: Number(entranceFee), gameControllerId };
+      console.log('🎮 Creating game with data:', gameData);
       const created = await createGame(gameData);
       const newGameId = created?.newGame?._id || created?.newGame?.id;
-      
+
       // If transferring participants is enabled and a game is selected
       if (transferParticipants && selectedGame) {
         // Find the selected game
         const sourceGame = games.find(g => g._id === selectedGame);
-        
+
         if (sourceGame && Array.isArray(sourceGame.participants) && sourceGame.participants.length > 0) {
           // Transfer each participant to the new game
           for (const participant of sourceGame.participants) {
@@ -248,7 +310,7 @@ const CreateGameModal = ({ open, onClose, onGameCreated, games, transferParticip
           }
         }
       }
-      
+
       setName('');
       setEntranceFee('');
       setSelectedGame('');
@@ -256,7 +318,9 @@ const CreateGameModal = ({ open, onClose, onGameCreated, games, transferParticip
       onGameCreated(newGameId);
       onClose();
     } catch (err) {
-      alert('Failed to create game or transfer participants');
+      console.error('Error creating game or transferring participants:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to create game or transfer participants';
+      alert(`Error: ${errorMessage}`);
     } finally {
       setSubmitting(false);
     }
@@ -274,22 +338,22 @@ const CreateGameModal = ({ open, onClose, onGameCreated, games, transferParticip
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <input type="text" placeholder="Game Name" value={name} onChange={e => setName(e.target.value)} required className="border p-2 rounded" />
           <input type="number" placeholder="Entrance Fee" value={entranceFee} onChange={e => setEntranceFee(e.target.value)} required className="border p-2 rounded" />
-          
+
           <div className="flex items-center gap-2 mt-2">
-            <input 
-              type="checkbox" 
-              id="transferParticipants" 
-              checked={transferParticipants} 
-              onChange={e => setTransferParticipants(e.target.checked)} 
-              className="w-4 h-4 text-blue-600" 
+            <input
+              type="checkbox"
+              id="transferParticipants"
+              checked={transferParticipants}
+              onChange={e => setTransferParticipants(e.target.checked)}
+              className="w-4 h-4 text-blue-600"
             />
             <label htmlFor="transferParticipants" className="text-sm font-medium text-gray-700">Transfer participants from previous game</label>
           </div>
-          
+
           {transferParticipants && (
-            <select 
-              value={selectedGame} 
-              onChange={e => setSelectedGame(e.target.value)} 
+            <select
+              value={selectedGame}
+              onChange={e => setSelectedGame(e.target.value)}
               className="border p-2 rounded mt-2"
               required={transferParticipants}
             >
@@ -301,7 +365,7 @@ const CreateGameModal = ({ open, onClose, onGameCreated, games, transferParticip
               ))}
             </select>
           )}
-          
+
           <button type="submit" className="bg-blue-600 text-white py-2 rounded font-semibold mt-2" disabled={submitting}>
             {submitting ? 'Creating...' : 'Create Game'}
           </button>
@@ -391,14 +455,14 @@ const CompletedGamesTable = ({ games }) => {
                   {gamesByDate[date].map(game => {
                     const participantCount = Array.isArray(game.participants) ? game.participants.length : 0;
                     const totalCollected = participantCount * (Number(game.entranceFee) || 0);
-                    const prize80 = (totalCollected * 0.7).toFixed(2);
+                    const prize70 = (totalCollected * 0.7).toFixed(2);
                     const systemRevenue = (totalCollected * 0.3).toFixed(2);
                     return (
                       <tr key={game._id} className="hover:bg-yellow-50 border-b border-gray-100 transition-all duration-200 animate-fade-in-up">
                         <td className="px-4 py-2 font-semibold text-orange-700">{game.name || '-'}</td>
                         <td className="px-4 py-2">{game.entranceFee} ETB</td>
                         <td className="px-4 py-2">{participantCount}</td>
-                        <td className="px-4 py-2">{prize80} ETB</td>
+                        <td className="px-4 py-2">{prize70} ETB</td>
                         <td className="px-4 py-2 text-green-700 font-semibold">{game.winner?.name || '-'}</td>
                         <td className="px-4 py-2">{systemRevenue} ETB</td>
                       </tr>
@@ -464,7 +528,7 @@ const GameControllerDashboard = () => {
 
   const fetchData = async () => {
     const userId = localStorage.getItem('userId');
-    
+
     // Check if userId exists before making the API call
     if (!userId) {
       console.warn('No user ID found in localStorage');
@@ -475,7 +539,7 @@ const GameControllerDashboard = () => {
       setRevenue(0);
       return;
     }
-    
+
     try {
       const gamesData = await getGamesControllerById(userId);
       setGames(gamesData);
@@ -487,7 +551,7 @@ const GameControllerDashboard = () => {
       const systemRevenueToday = todayGames.reduce((sum, g) => {
         const fee = Number(g.entranceFee) || 0;
         const count = Array.isArray(g.participants) ? g.participants.length : 0;
-        return sum + (fee * count * 0.3);
+        return sum + (fee * count * 0.3); // 30% of total collected
       }, 0);
       setTotalGamesToday(totalGamesToday);
       setTotalParticipants(totalParticipantsToday);
@@ -552,12 +616,12 @@ const GameControllerDashboard = () => {
           <OngoingGamesSection games={ongoingGames} />
           <CompletedGamesTable games={completedGames} />
         </div>
-        <CreateGameModal 
-          open={showCreateModal} 
-          onClose={() => setShowCreateModal(false)} 
+        <CreateGameModal
+          open={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
           onGameCreated={(gameId) => {
             if (gameId) navigate(`/game/${gameId}`);
-          }} 
+          }}
           games={games}
           transferParticipants={transferParticipants}
           setTransferParticipants={setTransferParticipants}
@@ -566,10 +630,10 @@ const GameControllerDashboard = () => {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
             <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md relative">
               <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowParticipantModal(false)}>&times;</button>
-              <ParticipantForm 
-                onSubmit={handleParticipantSubmit} 
+              <ParticipantForm
+                onSubmit={handleParticipantSubmit}
                 games={games}
-                showSuggestions={!transferParticipants} 
+                showSuggestions={!transferParticipants}
               />
             </div>
           </div>
@@ -577,10 +641,10 @@ const GameControllerDashboard = () => {
         {showParticipantAnimation && currentParticipant && (
           <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-80 animate-fade-in">
             {currentParticipant.photo ? (
-              <img 
-                src={getFormattedImageUrl(currentParticipant.photo)} 
-                alt={currentParticipant.name} 
-                className="w-48 h-48 rounded-full object-cover border-4 border-white mb-6" 
+              <img
+                src={getFormattedImageUrl(currentParticipant.photo)}
+                alt={currentParticipant.name}
+                className="w-48 h-48 rounded-full object-cover border-4 border-white mb-6"
                 onError={(e) => {
                   console.error('GameControllerDashboard animation image load error:', e);
                   // If the image fails to load, show a default emoji

@@ -24,7 +24,7 @@ api.interceptors.request.use((config) => {
         // Check if this is a public endpoint that doesn't require auth
         const publicEndpoints = ['/games/', '/participants'];
         const isPublicEndpoint = publicEndpoints.some(endpoint => config.url.includes(endpoint));
-        
+
         if (!isPublicEndpoint) {
             console.log('⚠️  No token found for protected request:', config.url);
         }
@@ -334,10 +334,10 @@ export const getParticipants = async (gameId) => {
 export const createParticipant = async (gameId, participantData) => {
     try {
         console.log('👥 Creating participant for game:', gameId, participantData);
-        
+
         // Check if participantData is FormData (file upload) or regular object
         const isFormData = participantData instanceof FormData;
-        
+
         if (isOnline()) {
             const config = isFormData ? {
                 headers: {
@@ -345,7 +345,7 @@ export const createParticipant = async (gameId, participantData) => {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
             } : undefined;
-            
+
             const response = await api.post(`/games/${gameId}/participants`, participantData, config);
             console.log('✅ Participant created:', response.data);
             return response.data;
@@ -385,7 +385,7 @@ export const getPrizes = async () => {
 export const createPrize = async (prizeData) => {
     try {
         console.log('🏆 Creating prize:', prizeData);
-        
+
         // Create FormData if prizeData is not already FormData
         let formData;
         if (prizeData instanceof FormData) {
@@ -396,7 +396,7 @@ export const createPrize = async (prizeData) => {
             if (prizeData.amount) formData.append('amount', prizeData.amount);
             if (prizeData.image) formData.append('image', prizeData.image);
         }
-        
+
         if (isOnline()) {
             const response = await api.post('/prizes', formData, {
                 headers: {
@@ -471,6 +471,19 @@ export const getAllParticipants = async () => {
     }
 };
 
+// Get participants by controller (restaurant-specific)
+export const getParticipantsByController = async (controllerId) => {
+    try {
+        console.log('👥 Fetching participants for controller:', controllerId);
+        const response = await api.get(`/participants/controller/${controllerId}`);
+        console.log('✅ Controller participants fetched:', response.data.length, 'participants');
+        return response.data;
+    } catch (error) {
+        console.error('💥 Error fetching controller participants:', error.response?.data || error.message);
+        return [];
+    }
+};
+
 export const getGameById = async (gameId) => {
     try {
         console.log('🎮 Fetching game by ID:', gameId);
@@ -490,7 +503,7 @@ export const getGameControllerById = async (id) => {
             console.warn('⚠️ Invalid controller ID provided to getGameControllerById:', id);
             return null;
         }
-        
+
         const response = await api.get(`/admin/controllers/${id}`);
         return response.data;
     } catch (error) {
@@ -518,7 +531,7 @@ export const getGamesControllerById = async (controllerId) => {
         console.warn('⚠️ Invalid controller ID provided:', controllerId);
         return [];
     }
-    
+
     try {
         console.log('🎮 Fetching games for controller:', controllerId);
         if (isOnline()) {
@@ -550,7 +563,7 @@ export const getControllerRevenue = async (controllerId) => {
         console.warn('⚠️ Invalid controller ID provided:', controllerId);
         return { totalRevenue: 0 };
     }
-    
+
     try {
         console.log('💰 Fetching revenue for controller:', controllerId);
         if (isOnline()) {
@@ -591,7 +604,7 @@ export const syncOfflineData = async () => {
         try {
             // Sync regular offline actions
             const syncResult = await offlineApi.syncOfflineActions();
-            
+
             // Return the combined results
             return {
                 ...syncResult,

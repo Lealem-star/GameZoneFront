@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import gurshaLogo from '../../assets/gurshalogo.png';
-import { getParticipants, getGameById, createParticipant, deleteGame, getAllParticipants } from '../../services/api';
+import { getParticipants, getGameById, createParticipant, deleteGame, getAllParticipants, getParticipantsByController } from '../../services/api';
 import { getFormattedImageUrl, handleImageError } from '../../utils/imageUtils';
 import PrizeDisplay from '../../components/PrizeDisplay'; // Import the PrizeDisplay component
 
@@ -21,7 +21,7 @@ const Toast = ({ message, type, onClose }) => (
     </div>
 );
 
-const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
+const AddParticipantModal = ({ open, onClose, onAdded, gameId, game }) => {
     const [name, setName] = useState('');
     const [photo, setPhoto] = useState(null);
     const [submitting, setSubmitting] = useState(false);
@@ -59,35 +59,56 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
         };
     }, [showCamera]);
 
-    // Fetch all participants when modal opens to use for suggestions
+    // Fetch participants when modal opens to use for suggestions
     useEffect(() => {
-        if (open) {
-            // Get all participants for autocomplete suggestions
-            getAllParticipants()
+        if (open && game?.gameControllerId) {
+            console.log('🏪 Fetching participants for controller:', game.gameControllerId);
+            // Get participants for this specific controller for autocomplete suggestions
+            getParticipantsByController(game.gameControllerId)
                 .then(data => {
+                    console.log('✅ Controller participants fetched:', data.length, 'participants');
                     // Create a unique list of participant names
                     const uniqueNames = [...new Set(data.map(p => p.name))];
                     setRecentParticipants(uniqueNames);
+                    console.log('📝 Unique participant names for suggestions:', uniqueNames);
                 })
-                .catch(err => console.error('Error fetching participants for suggestions:', err));
+                .catch(err => {
+                    console.error('Error fetching controller participants for suggestions:', err);
+                    // Fallback to all participants if controller-specific fetch fails
+                    getAllParticipants()
+                        .then(data => {
+                            const uniqueNames = [...new Set(data.map(p => p.name))];
+                            setRecentParticipants(uniqueNames);
+                        })
+                        .catch(fallbackErr => console.error('Error fetching all participants for suggestions:', fallbackErr));
+                });
+        } else if (open) {
+            console.log('⚠️ No controller info available, fetching all participants');
+            // Fallback to all participants if no controller info available
+            getAllParticipants()
+                .then(data => {
+                    const uniqueNames = [...new Set(data.map(p => p.name))];
+                    setRecentParticipants(uniqueNames);
+                })
+                .catch(err => console.error('Error fetching all participants for suggestions:', err));
         }
-    }, [open]);
-    
+    }, [open, game?.gameControllerId]);
+
     useEffect(() => {
         if (toast) {
             const timeout = setTimeout(() => setToast(null), 3500);
             return () => clearTimeout(timeout);
         }
     }, [toast]);
-    
+
     // Handle name input changes and show suggestions
     const handleNameChange = (e) => {
         const value = e.target.value;
         setName(value);
-        
+
         if (value.length > 0) {
             // Filter suggestions based on input
-            const filtered = recentParticipants.filter(p => 
+            const filtered = recentParticipants.filter(p =>
                 p.toLowerCase().includes(value.toLowerCase())
             );
             setSuggestions(filtered);
@@ -97,7 +118,7 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
             setShowSuggestions(false);
         }
     };
-    
+
     // Handle suggestion selection
     const handleSelectSuggestion = (suggestion) => {
         // Set the name state with the full suggestion
@@ -168,10 +189,10 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
     // Helper function to add participant
     const addParticipant = async (photoBase64, emojiValue) => {
         try {
-            await createParticipant(gameId, { 
-                name, 
-                photo: photoBase64, 
-                emoji: emojiValue || emoji 
+            await createParticipant(gameId, {
+                name,
+                photo: photoBase64,
+                emoji: emojiValue || emoji
             }); // Include emoji in the participant data
             setName('');
             setPhoto(null);
@@ -194,24 +215,27 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
             <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md relative animate-scale-in">
                 <button className="absolute top-2 right-2 text-gray-400 hover:text-red-500 hover:rotate-90 transition-all duration-300" onClick={onClose}>&times;</button>
                 <h2 className="text-xl font-bold mb-4">Add Participant</h2>
+                {game?.gameControllerId && (
+                    <p className="text-sm text-gray-600 mb-4">💡 Suggestions are from your restaurant's previous participants</p>
+                )}
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <div className="relative">
-                        <input 
-                            type="text" 
-                            placeholder="Name" 
-                            value={name} 
-                            onChange={handleNameChange} 
-                            onFocus={() => name.length > 0 && setSuggestions(recentParticipants.filter(p => p.toLowerCase().includes(name.toLowerCase())))} 
-                            onBlur={() => setTimeout(() => setShowSuggestions(false), 300)} 
-                            required 
-                            className="border p-2 rounded w-full" 
+                        <input
+                            type="text"
+                            placeholder="Name"
+                            value={name}
+                            onChange={handleNameChange}
+                            onFocus={() => name.length > 0 && setSuggestions(recentParticipants.filter(p => p.toLowerCase().includes(name.toLowerCase())))}
+                            onBlur={() => setTimeout(() => setShowSuggestions(false), 300)}
+                            required
+                            className="border p-2 rounded w-full"
                             ref={nameInputRef}
                         />
                         {showSuggestions && suggestions.length > 0 && (
                             <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
                                 {suggestions.map((suggestion, index) => (
-                                    <div 
-                                        key={index} 
+                                    <div
+                                        key={index}
                                         className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
                                         onMouseDown={(e) => {
                                             e.preventDefault(); // Prevent blur event from firing before click
@@ -224,19 +248,19 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
                             </div>
                         )}
                     </div>
-                    
+
                     <div className="flex justify-between items-center mb-2">
                         <span className="text-lg font-medium">Choose representation:</span>
                         <div className="flex gap-4">
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 className={`px-4 py-2 rounded font-semibold transition-all duration-200 ${!useEmoji ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
                                 onClick={() => setUseEmoji(false)}
                             >
                                 Photo
                             </button>
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 className={`px-4 py-2 rounded font-semibold transition-all duration-200 ${useEmoji ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
                                 onClick={() => setUseEmoji(true)}
                             >
@@ -249,19 +273,19 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId }) => {
                         <div className="flex flex-col gap-2">
                             <label className="text-sm font-medium">Choose Emoji</label>
                             <div className="flex flex-col items-center gap-2">
-                                <input 
-                                    type="text" 
-                                    placeholder="Insert Emoji" 
-                                    value={emoji} 
-                                    onChange={e => setEmoji(e.target.value)} 
-                                    className="border p-2 rounded text-center text-4xl w-full" 
+                                <input
+                                    type="text"
+                                    placeholder="Insert Emoji"
+                                    value={emoji}
+                                    onChange={e => setEmoji(e.target.value)}
+                                    className="border p-2 rounded text-center text-4xl w-full"
                                 />
                                 <div className="text-sm text-gray-500">Type or paste your favorite emoji</div>
                                 <div className="flex flex-wrap gap-2 mt-2 justify-center">
                                     {['😀', '😎', '🥳', '😍', '🤩', '🥰', '😇', '🤠', '🤑', '🤗'].map(e => (
-                                        <button 
-                                            key={e} 
-                                            type="button" 
+                                        <button
+                                            key={e}
+                                            type="button"
                                             className="text-2xl p-2 hover:bg-gray-100 rounded-full transition-all"
                                             onClick={() => setEmoji(e)}
                                         >
@@ -405,13 +429,13 @@ const GameDashboard = () => {
             fetchParticipants();
         }
     }, [gameId, fetchParticipants]);
-    
+
     // Auto-play background music when component mounts
     useEffect(() => {
         // Don't attempt to autoplay on initial load
         // Audio will be played when user clicks the play button
         setIsPlaying(false);
-            
+
         return () => {
             if (tickingAudioRef.current) {
                 tickingAudioRef.current.pause();
@@ -488,9 +512,9 @@ const GameDashboard = () => {
         <div className="flex min-h-screen bg-gray-100">
             {/* Audio element for background music */}
             <audio ref={tickingAudioRef} src={encodeURI("/sounds/tsehay.mp3")} preload="auto" />
-            
+
             {/* Audio control button */}
-            <button 
+            <button
                 onClick={() => {
                     if (isPlaying) {
                         tickingAudioRef.current.pause();
@@ -526,7 +550,7 @@ const GameDashboard = () => {
                     </>
                 )}
             </button>
-            
+
             {/* Sidebar */}
             <div className="bg-gradient-to-r from-orange-400 to-yellow-500 w-64 min-w-[12rem] max-w-xs flex flex-col items-center py-6 shadow-lg animate-fade-in-left overflow-x-auto">
                 <img src={gurshaLogo} alt="Gursha Logo" className="h-32 mb-0 animate-fade-in-up" />
@@ -566,7 +590,7 @@ const GameDashboard = () => {
 
                 {/* Marquee/scrolling participant images */}
                 <ParticipantMarquee participants={participants} />
-                <AddParticipantModal open={showAddModal} onClose={() => setShowAddModal(false)} onAdded={handleParticipantAdded} gameId={gameId} />
+                <AddParticipantModal open={showAddModal} onClose={() => setShowAddModal(false)} onAdded={handleParticipantAdded} gameId={gameId} game={game} />
                 {showHaltModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 animate-fade-in">
                         <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full flex flex-col items-center relative animate-scale-in">
@@ -600,10 +624,10 @@ const GameDashboard = () => {
                 {showParticipantAnimation && currentParticipant && (
                     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-80 animate-fade-in">
                         {currentParticipant.photo ? (
-                            <img 
-                                src={currentParticipant.photo.startsWith('http') ? currentParticipant.photo : `${process.env.REACT_APP_API_BASE_URL.replace('/api', '')}${currentParticipant.photo}`} 
-                                alt={currentParticipant.name} 
-                                className="w-48 h-48 rounded-full object-cover border-4 border-white mb-6" 
+                            <img
+                                src={currentParticipant.photo.startsWith('http') ? currentParticipant.photo : `${process.env.REACT_APP_API_BASE_URL.replace('/api', '')}${currentParticipant.photo}`}
+                                alt={currentParticipant.name}
+                                className="w-48 h-48 rounded-full object-cover border-4 border-white mb-6"
                                 onError={(e) => {
                                     console.error('Participant animation image load error:', e);
                                     // If the image fails to load, we'll show the emoji fallback
