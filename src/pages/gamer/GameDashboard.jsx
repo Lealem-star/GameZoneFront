@@ -415,6 +415,7 @@ const GameDashboard = () => {
     const [showParticipantAnimation, setShowParticipantAnimation] = useState(false);
     const [currentParticipant, setCurrentParticipant] = useState(null);
     const tickingAudioRef = useRef(null);
+    const attentionAudioRef = useRef(null);
     const [isPlaying, setIsPlaying] = useState(false);
 
     const fetchParticipants = useCallback(() => {
@@ -454,10 +455,64 @@ const GameDashboard = () => {
         if (participant) {
             setCurrentParticipant(participant);
             setShowParticipantAnimation(true);
-            const audio = new Audio(encodeURI('/sounds/welcome-good-luck.mp3'));
-            audio.play().catch(error => {
-                console.log('Welcome audio play was prevented:', error);
-            });
+            const playWelcomeAudio = () => {
+                try {
+                    const audio = new Audio(encodeURI('/sounds/welcome-good-luck.mp3'));
+                    audio.volume = 1.0; // maximize loudness
+                    audio.play().catch(err => console.log('Welcome audio blocked:', err));
+                } catch (_) { }
+            };
+
+            try {
+                if (typeof window !== 'undefined' && 'speechSynthesis' in window && participant.name) {
+                    const synth = window.speechSynthesis;
+
+                    const pickEthiopianVoice = () => {
+                        const voices = synth.getVoices() || [];
+                        // Prefer Amharic/Ethiopian voices if available
+                        const byLang = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('am'));
+                        if (byLang) return byLang;
+                        const byName = voices.find(v => /amharic|ethiop/i.test(v.name || ''));
+                        if (byName) return byName;
+                        // Fallback to a clear English voice if none found
+                        return voices.find(v => /en-GB|en-US/i.test(v.lang || '')) || voices[0];
+                    };
+
+                    const speak = () => {
+                        const utterance = new SpeechSynthesisUtterance(participant.name);
+                        const voice = pickEthiopianVoice();
+                        if (voice) {
+                            utterance.voice = voice;
+                            utterance.lang = voice.lang || 'am-ET';
+                        } else {
+                            utterance.lang = 'am-ET';
+                        }
+                        utterance.volume = 1.0; // louder
+                        utterance.rate = 0.9;   // slightly slower for clarity
+                        utterance.pitch = 1.05; // subtle emphasis
+                        utterance.onend = playWelcomeAudio;
+                        synth.speak(utterance);
+                    };
+
+                    // Some browsers load voices asynchronously
+                    if ((synth.getVoices() || []).length === 0) {
+                        const handle = () => {
+                            speak();
+                            synth.removeEventListener('voiceschanged', handle);
+                        };
+                        synth.addEventListener('voiceschanged', handle);
+                        setTimeout(() => {
+                            if (!synth.speaking) speak();
+                        }, 400);
+                    } else {
+                        speak();
+                    }
+                } else {
+                    playWelcomeAudio();
+                }
+            } catch (e) {
+                playWelcomeAudio();
+            }
             setTimeout(() => {
                 setShowParticipantAnimation(false);
             }, 10000);
@@ -465,23 +520,27 @@ const GameDashboard = () => {
     };
 
     const handleDrawWinner = () => {
+        // Play an attention sound to catch players' attention
+        if (attentionAudioRef.current) {
+            attentionAudioRef.current.currentTime = 0;
+            attentionAudioRef.current.play().catch(err => console.log('Attention audio blocked:', err));
+        }
+
         // Play background music before navigating
         if (tickingAudioRef.current) {
             tickingAudioRef.current.loop = true;
             tickingAudioRef.current.play()
                 .then(() => {
-                    // Navigate after a short delay to ensure the sound starts playing
                     setTimeout(() => {
-                        navigate(`/number-game/${gameId}`);
+                        navigate(`/draw-winner/${gameId}`);
                     }, 500);
                 })
                 .catch(error => {
                     console.log('Audio play before navigation was prevented:', error);
-                    // Navigate anyway if audio fails
-                    navigate(`/number-game/${gameId}`);
+                    navigate(`/draw-winner/${gameId}`);
                 });
         } else {
-            navigate(`/number-game/${gameId}`);
+            navigate(`/draw-winner/${gameId}`);
         }
     };
 
@@ -510,8 +569,9 @@ const GameDashboard = () => {
 
     return (
         <div className="flex min-h-screen bg-gray-100">
-            {/* Audio element for background music */}
+            {/* Audio elements */}
             <audio ref={tickingAudioRef} src={encodeURI("/sounds/tsehay.mp3")} preload="auto" />
+            <audio ref={attentionAudioRef} src={encodeURI("/sounds/welcome-good-luck.mp3")} preload="auto" />
 
             {/* Audio control button */}
             <button

@@ -26,13 +26,3 @@ serviceWorkerRegistration.register({
   }
 });
 
-// Clear caches to resolve audio file loading issues
-if ('caches' in window) {
-  caches.keys().then(cacheNames => {
-    return Promise.all(
-      cacheNames.map(cacheName => {
-        return caches.delete(cacheName);
-      })
-    );
-  });
-}

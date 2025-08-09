@@ -1,83 +1,67 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getGameById, updateGame, getParticipants } from '../../services/api';
-import { getFormattedImageUrl, handleImageError } from '../../utils/imageUtils';
+import { getFormattedImageUrl } from '../../utils/imageUtils';
 import Confetti from 'react-confetti';
-import PrizeDisplay from '../../components/PrizeDisplay'; // Adjust the import path as necessary
+import PrizeDisplay from '../../components/PrizeDisplay';
 
 const SPIN_DURATION = 30000; // 30 seconds
-const WINNER_ANNOUNCE_DURATION = 30000; // 10 seconds
+const WINNER_ANNOUNCE_DURATION = 30000; // 30 seconds
 
 const DrawWinner = () => {
     const { gameId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
+
     const [game, setGame] = useState(null);
     const [participants, setParticipants] = useState([]);
     const [spinning, setSpinning] = useState(true);
     const [winner, setWinner] = useState(null);
-    const spinTimeout = useRef(null);
-    const showWinnerTimeout = useRef(null);
     const [countdown, setCountdown] = useState(SPIN_DURATION / 1000);
+    const [randomPositions, setRandomPositions] = useState([]);
+
     const tickingAudioRef = useRef(null);
     const celebrationAudioRef = useRef(null);
-    const [randomPositions, setRandomPositions] = useState([]);
+    const spinTimeout = useRef(null);
+    const showWinnerTimeout = useRef(null);
 
     useEffect(() => {
         const fetchGameAndParticipants = async () => {
             try {
-                const g = await getGameById(gameId);
-                setGame(g);
+                const fetchedGame = await getGameById(gameId);
+                setGame(fetchedGame);
 
-                // Check if we have filtered participants from the NumberGuessingGame
-                if (location.state && location.state.filteredParticipants) {
-                    console.log('Using filtered participants from NumberGuessingGame:', location.state.filteredParticipants);
-                    setParticipants(location.state.filteredParticipants);
-                } else {
-                    // Fallback to fetching all participants if not coming from NumberGuessingGame
-                    const ps = await getParticipants(gameId);
-                    setParticipants(ps || []);
-                }
+                const fetchedParticipants = await getParticipants(gameId);
+                setParticipants(fetchedParticipants || []);
             } catch (error) {
                 console.error('Error fetching game or participants:', error);
-                // Set default values to prevent crashes
                 if (!game) setGame({ name: 'Game' });
-                if (participants.length === 0 && location.state && location.state.filteredParticipants) {
-                    setParticipants(location.state.filteredParticipants);
-                }
             }
         };
         fetchGameAndParticipants();
-    }, [gameId, location.state, game, participants.length]);
+        // We don't include game/participants in deps to avoid refetch loops
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [gameId, location.state]);
 
     useEffect(() => {
-        // Safety check - if component is unmounting or not fully initialized, don't proceed
         if (!gameId) return;
 
-        // Handle case when there are no participants
         if (participants.length === 0) {
-            // Show message and redirect back after a short delay
             const redirectTimer = setTimeout(() => {
                 navigate('/GameController');
             }, 3000);
             return () => clearTimeout(redirectTimer);
         }
 
-        // Check if we should skip the drawing animation
         if (location.state && location.state.skipDrawing && location.state.winner) {
-            // Skip drawing and immediately show the winner
             setSpinning(false);
             setWinner(location.state.winner);
 
-            // Play celebration sound
             if (celebrationAudioRef.current) {
                 celebrationAudioRef.current.currentTime = 0;
-                celebrationAudioRef.current.play().catch((error) => {
-                    console.log('Audio play was prevented:', error);
-                });
+                celebrationAudioRef.current.play().catch(() => { });
             }
 
-            // After WINNER_ANNOUNCE_DURATION, redirect back
             showWinnerTimeout.current = setTimeout(() => {
                 navigate('/GameController');
             }, WINNER_ANNOUNCE_DURATION);
@@ -87,22 +71,16 @@ const DrawWinner = () => {
             };
         }
 
-        // Normal drawing process
         setSpinning(true);
         setCountdown(SPIN_DURATION / 1000);
 
-        // Start ticking sound
         if (tickingAudioRef.current) {
             tickingAudioRef.current.currentTime = 0;
-            tickingAudioRef.current.play().catch((error) => {
-                console.log('Audio play was prevented:', error);
-            });
+            tickingAudioRef.current.play().catch(() => { });
         }
 
-        // Initialize random positions
         setRandomPositions(participants.map(() => ({ x: 0, y: 0 })));
 
-        // Random movement interval
         let moveInterval = null;
         if (participants.length > 0) {
             moveInterval = setInterval(() => {
@@ -110,17 +88,14 @@ const DrawWinner = () => {
                     participants.map(() => {
                         const areaW = Math.min(window.innerWidth * 0.9, 500) - 64;
                         const areaH = Math.min(window.innerWidth * 0.9, 500) - 64;
-                        const x = Math.random() * areaW;
-                        const y = Math.random() * areaH;
-                        return { x, y };
+                        return { x: Math.random() * areaW, y: Math.random() * areaH };
                     })
                 );
             }, 200);
         }
 
-        // Countdown interval
         const interval = setInterval(() => {
-            setCountdown(prev => {
+            setCountdown((prev) => {
                 if (prev <= 1) {
                     clearInterval(interval);
                     return 0;
@@ -129,16 +104,13 @@ const DrawWinner = () => {
             });
         }, 1000);
 
-        // After SPIN_DURATION, pick a winner
         spinTimeout.current = setTimeout(() => {
             try {
                 if (tickingAudioRef.current && !tickingAudioRef.current.paused) {
                     tickingAudioRef.current.pause();
                 }
 
-                // Safety check to ensure participants array is still valid
                 if (!participants || participants.length === 0) {
-                    console.error('No participants available when selecting winner');
                     navigate('/GameController');
                     return;
                 }
@@ -148,42 +120,30 @@ const DrawWinner = () => {
                 setWinner(selectedWinner);
                 setSpinning(false);
 
-                // Play celebration sound
                 if (celebrationAudioRef.current) {
                     celebrationAudioRef.current.currentTime = 0;
-                    celebrationAudioRef.current.play().catch((error) => {
-                        console.log('Celebration audio play was prevented:', error);
-                    });
+                    celebrationAudioRef.current.play().catch(() => { });
                 }
 
-                // Update backend to mark game as completed and set winner (send only ID)
-                updateGame(gameId, { winner: selectedWinner?._id, status: 'completed' })
-                    .catch(error => {
-                        console.error('Error updating game with winner:', error);
-                    });
+                updateGame(gameId, { winner: selectedWinner?._id, status: 'completed' }).catch(() => { });
 
-                // After WINNER_ANNOUNCE_DURATION, redirect back
                 showWinnerTimeout.current = setTimeout(() => {
                     navigate('/GameController');
                 }, WINNER_ANNOUNCE_DURATION);
             } catch (error) {
                 console.error('Error in winner selection process:', error);
-                // Fallback - return to game controller
                 navigate('/GameController');
             }
         }, SPIN_DURATION);
 
-        // Cleanup function
         return () => {
             if (spinTimeout.current) clearTimeout(spinTimeout.current);
             if (showWinnerTimeout.current) clearTimeout(showWinnerTimeout.current);
             clearInterval(interval);
             if (moveInterval) clearInterval(moveInterval);
 
-            // Store refs in variables to avoid the exhaustive-deps warning
             const tickingAudio = tickingAudioRef.current;
             const celebrationAudio = celebrationAudioRef.current;
-
             if (tickingAudio && !tickingAudio.paused) tickingAudio.pause();
             if (celebrationAudio && !celebrationAudio.paused) celebrationAudio.pause();
         };
@@ -191,7 +151,6 @@ const DrawWinner = () => {
 
     if (!game) return <div className="p-8 text-center">Loading game...</div>;
 
-    // Show a message when there are no participants
     if (participants.length === 0) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-yellow-100 via-orange-100 to-pink-100 relative overflow-hidden">
@@ -205,15 +164,16 @@ const DrawWinner = () => {
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-yellow-100 via-orange-100 to-pink-100 relative overflow-hidden">
-            <audio ref={tickingAudioRef} src={encodeURI("/sounds/ticking.mp3")} loop preload="auto" />
-            <audio ref={celebrationAudioRef} src={encodeURI("/sounds/celebration.mp3")} preload="auto" />
+            <audio ref={tickingAudioRef} src={encodeURI('/sounds/ticking.mp3')} loop preload="auto" />
+            <audio ref={celebrationAudioRef} src={encodeURI('/sounds/celebration.mp3')} preload="auto" />
+
             {spinning && (
                 <div className="fixed top-8 right-8 z-20 flex flex-col items-center bg-white bg-opacity-80 rounded-lg shadow-lg px-8 py-6 animate-fade-in-up">
                     <span className="text-4xl md:text-6xl font-extrabold text-orange-600 drop-shadow-lg">{countdown}</span>
                     <span className="text-lg font-semibold text-gray-700 mt-2">ቀረው</span>
                 </div>
             )}
-            {/* Winner Full-Screen Announcement */}
+
             {!spinning && winner && (
                 <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-90 animate-fade-in">
                     <Confetti width={window.innerWidth} height={window.innerHeight} numberOfPieces={500} recycle={true} />
@@ -224,13 +184,11 @@ const DrawWinner = () => {
                                 alt={winner.name}
                                 className="w-48 h-48 md:w-64 md:h-64 rounded-full object-cover border-8 border-yellow-400 shadow-2xl mb-6 animate-bounce"
                                 onError={(e) => {
-                                    console.error('Winner image load error:', e);
-                                    // If the image fails to load, show a default emoji
-                                    e.target.style.display = 'none';
+                                    e.currentTarget.style.display = 'none';
                                     const fallbackElement = document.createElement('div');
-                                    fallbackElement.className = "w-48 h-48 md:w-64 md:h-64 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 border-8 border-yellow-400 shadow-2xl mb-6 animate-bounce text-8xl";
+                                    fallbackElement.className = 'w-48 h-48 md:w-64 md:h-64 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 border-8 border-yellow-400 shadow-2xl mb-6 animate-bounce text-8xl';
                                     fallbackElement.innerHTML = `<span role="img" aria-label="winner-emoji">${winner.emoji || '🏆'}</span>`;
-                                    e.target.parentNode.appendChild(fallbackElement);
+                                    e.currentTarget.parentNode.appendChild(fallbackElement);
                                 }}
                             />
                         ) : (
@@ -241,12 +199,11 @@ const DrawWinner = () => {
                         <div className="text-5xl md:text-6xl font-extrabold text-yellow-300 mb-4 drop-shadow-lg animate-bounce">{winner.name}</div>
                         <div className="text-3xl md:text-4xl text-green-300 font-bold mb-2 animate-pulse">Congratulations!</div>
                         <div className="text-xl text-white font-medium">አሸናፊያችን እንኳን ደስ ያለህ!</div>
-                        {/* Prize Display */}
                         <PrizeDisplay prizeAmount={game?.totalCollected ? Math.floor(game.totalCollected * 0.7) : 0} />
                     </div>
                 </div>
             )}
-            {/* Draw UI (hidden when winner is shown) */}
+
             {spinning && (
                 <>
                     <h1 className="text-2xl md:text-4xl font-extrabold mb-4 text-orange-700 drop-shadow">የ<span className="text-yellow-600">{game.name} አሸናፊ...</span></h1>
@@ -278,13 +235,11 @@ const DrawWinner = () => {
                                             alt={p.name}
                                             className="w-full h-full object-cover"
                                             onError={(e) => {
-                                                console.error('DrawWinner image load error:', e);
-                                                // If the image fails to load, show a default emoji
-                                                e.target.style.display = 'none';
+                                                e.currentTarget.style.display = 'none';
                                                 const fallbackElement = document.createElement('div');
-                                                fallbackElement.className = "w-full h-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 text-8xl";
+                                                fallbackElement.className = 'w-full h-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 text-8xl';
                                                 fallbackElement.innerHTML = `<span role="img" aria-label="participant-emoji">${p.emoji || '😀'}</span>`;
-                                                e.target.parentNode.appendChild(fallbackElement);
+                                                e.currentTarget.parentNode.appendChild(fallbackElement);
                                             }}
                                         />
                                     ) : (
@@ -296,9 +251,7 @@ const DrawWinner = () => {
                             );
                         })}
                     </div>
-                    <div className="mt-8 text-lg md:text-xl text-gray-700 font-medium">
-                        Spinning participants...
-                    </div>
+                    <div className="mt-8 text-lg md:text-xl text-gray-700 font-medium">Spinning participants...</div>
                 </>
             )}
         </div>
@@ -306,3 +259,5 @@ const DrawWinner = () => {
 };
 
 export default DrawWinner;
+
+

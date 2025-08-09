@@ -14,7 +14,7 @@ export const checkImageExists = (url) => {
       resolve(false);
       return;
     }
-    
+
     const img = new Image();
     img.onload = () => resolve(true);
     img.onerror = () => resolve(false);
@@ -31,27 +31,27 @@ export const checkImageExists = (url) => {
 export const getFormattedImageUrl = (imageUrl) => {
   // If the URL is null, undefined, or an empty string, return null
   if (!imageUrl || imageUrl.trim() === '') return null;
-  
+
   // If the URL already starts with http or https, it's already a complete URL
   if (imageUrl.startsWith('http')) {
     return imageUrl;
   }
-  
+
   // Otherwise, prepend the API base URL (without the /api part)
   const baseUrl = process.env.REACT_APP_API_BASE_URL.replace('/api', '');
-  
+
   // Make sure the imageUrl starts with a slash if it doesn't already
   const formattedImageUrl = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
-  
+
   // Check if the URL points to a valid image file extension
   const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.bmp', '.JPG', '.JPEG', '.PNG'];
   const hasValidExtension = validExtensions.some(ext => formattedImageUrl.toLowerCase().endsWith(ext.toLowerCase()));
-  
+
   // If the URL doesn't have a valid image extension, log a warning in development
   if (!hasValidExtension && process.env.NODE_ENV === 'development') {
     console.warn(`Warning: Image URL may not point to a valid image file: ${formattedImageUrl}`);
   }
-  
+
   return `${baseUrl}${formattedImageUrl}`;
 };
 
@@ -65,16 +65,16 @@ export const getFormattedImageUrl = (imageUrl) => {
 export const handleImageError = (event, fallbackText = '👤', className = 'text-3xl') => {
   // Log a more helpful error message with the image source
   const imgSrc = event.target.src || 'unknown source';
-  
+
   // Only log to console in development environment to avoid cluttering production logs
   if (process.env.NODE_ENV === 'development') {
     console.error(`Error loading image from ${imgSrc}`);
   }
-  
+
   try {
     // Hide the broken image
     event.target.style.display = 'none';
-    
+
     // Check if a fallback element already exists to prevent duplicates
     const parent = event.target.parentNode;
     if (!parent) {
@@ -83,14 +83,14 @@ export const handleImageError = (event, fallbackText = '👤', className = 'text
       }
       return;
     }
-    
+
     // Add a title attribute to the parent for better UX
     parent.setAttribute('title', 'Image could not be loaded');
-    
+
     // Extract the first class name to use as a selector, or use a default if className is empty
     const firstClass = className && className.split(' ')[0] ? className.split(' ')[0] : 'image-fallback';
     const existingFallback = parent.querySelector(`.${firstClass}`);
-    
+
     if (existingFallback) {
       // Update existing fallback text if provided
       if (fallbackText && fallbackText !== existingFallback.textContent) {
@@ -98,12 +98,12 @@ export const handleImageError = (event, fallbackText = '👤', className = 'text
       }
       return;
     }
-    
+
     // Create a fallback element
     const fallbackElement = document.createElement('span');
     fallbackElement.className = `image-fallback ${className}`;
     fallbackElement.textContent = fallbackText;
-    
+
     // Add the fallback element to the parent of the image
     parent.appendChild(fallbackElement);
   } catch (error) {

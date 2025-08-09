@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaTrophy, FaUsers, FaDollarSign, FaGamepad, FaCog, FaUserCircle, FaPlus, FaSignOutAlt } from 'react-icons/fa';
+import { FaTrophy, FaUsers, FaDollarSign, FaGamepad, FaCog, FaUserCircle, FaPlus, FaSignOutAlt, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { getGames, createGame, getUserById, createParticipant, getGamesControllerById } from '../../services/api';
 import { logout } from '../../services/authService';
 import { getFormattedImageUrl, handleImageError, checkImageExists } from '../../utils/imageUtils';
@@ -297,6 +297,12 @@ const CreateGameModal = ({ open, onClose, onGameCreated, games, transferParticip
       const created = await createGame(gameData);
       const newGameId = created?.newGame?._id || created?.newGame?.id;
 
+      // Play new game announcement sound
+      try {
+        const audio = new Audio(encodeURI('/sounds/welcome-good-luck.mp3'));
+        audio.play().catch(() => { });
+      } catch (_) { }
+
       // If transferring participants is enabled and a game is selected
       if (transferParticipants && selectedGame) {
         // Find the selected game
@@ -398,7 +404,7 @@ const TopBar = ({ onCreateGame }) => (
   </div>
 );
 
-const SummaryCards = ({ totalGames, totalParticipants, systemRevenue }) => (
+const SummaryCards = ({ totalGames, totalParticipants, systemRevenue, showRevenue, onToggleRevenue }) => (
   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-6">
     <div className="bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl shadow-lg p-6 flex flex-col gap-2 items-center animate-fade-in-up">
       <div className="flex items-center gap-2 mb-2"><FaGamepad className="text-3xl text-blue-400" /><span className="font-semibold text-gray-700 text-lg">የዛሬ የጨዋታ ብዛት</span></div>
@@ -409,8 +415,21 @@ const SummaryCards = ({ totalGames, totalParticipants, systemRevenue }) => (
       <div className="text-3xl font-extrabold text-orange-700">{totalParticipants}</div>
     </div>
     <div className="bg-gradient-to-br from-green-100 to-green-200 rounded-xl shadow-lg p-6 flex flex-col gap-2 items-center animate-fade-in-up delay-200">
-      <div className="flex items-center gap-2 mb-2"><FaDollarSign className="text-3xl text-green-400" /><span className="font-semibold text-gray-700 text-lg">የዛሬ አጠቃላይ ገቢ</span></div>
-      <div className="text-3xl font-extrabold text-green-700">${systemRevenue.toFixed(2)}</div>
+      <div className="flex items-center gap-3 mb-2">
+        <FaDollarSign className="text-3xl text-green-400" />
+        <span className="font-semibold text-gray-700 text-lg">የዛሬ አጠቃላይ ገቢ</span>
+        <button
+          type="button"
+          onClick={onToggleRevenue}
+          className="ml-2 text-green-700/70 hover:text-green-800 transition-colors"
+          title={showRevenue ? 'Hide amount' : 'Show amount'}
+        >
+          {showRevenue ? <FaEyeSlash /> : <FaEye />}
+        </button>
+      </div>
+      <div className="text-3xl font-extrabold text-green-700">
+        {showRevenue ? `$${systemRevenue.toFixed(2)}` : '••••'}
+      </div>
     </div>
   </div>
 );
@@ -529,6 +548,7 @@ const GameControllerDashboard = () => {
   const [totalGamesToday, setTotalGamesToday] = useState(0);
   const [totalParticipants, setTotalParticipants] = useState(0);
   const [systemRevenue, setSystemRevenue] = useState(0);
+  const [showRevenue, setShowRevenue] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showParticipantModal, setShowParticipantModal] = useState(false);
   const [showParticipantAnimation, setShowParticipantAnimation] = useState(false);
@@ -624,6 +644,8 @@ const GameControllerDashboard = () => {
             totalGames={totalGamesToday}
             totalParticipants={totalParticipants}
             systemRevenue={systemRevenue}
+            showRevenue={showRevenue}
+            onToggleRevenue={() => setShowRevenue((prev) => !prev)}
           />
           <OngoingGamesSection games={ongoingGames} />
           <CompletedGamesTable games={completedGames} />
