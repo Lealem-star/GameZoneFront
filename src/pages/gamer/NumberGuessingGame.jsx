@@ -20,9 +20,7 @@ const NumberGuessingGame = () => {
     const [showResult, setShowResult] = useState(false);
     const [showElimination, setShowElimination] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [roundAnnouncement, setRoundAnnouncement] = useState(false);
-    const [countdown, setCountdown] = useState(15);
-    const [isPaused, setIsPaused] = useState(false);
+
 
     // Sound effects
     const tickingAudioRef = useRef(null);
@@ -75,25 +73,11 @@ const NumberGuessingGame = () => {
             const randomNum = Math.floor(Math.random() * 10000) + 1;
             setCurrentNumber(randomNum);
             setGamePhase('round1');
-            // Start round announcement
-            setRoundAnnouncement(true);
-            setCountdown(15);
+
         }
     }, [participants, gamePhase]);
 
-    // Countdown timer for round announcements
-    useEffect(() => {
-        let timer;
-        if (roundAnnouncement && countdown > 0 && !isPaused) {
-            timer = setTimeout(() => {
-                setCountdown(prev => prev - 1);
-            }, 1000);
-        } else if (roundAnnouncement && countdown === 0) {
-            setRoundAnnouncement(false);
-            setCountdown(15);
-        }
-        return () => clearTimeout(timer);
-    }, [roundAnnouncement, countdown, isPaused]);
+
 
     // Handle player guess
     const handleGuess = (participantId, guess) => {
@@ -198,7 +182,7 @@ const NumberGuessingGame = () => {
                 setShowElimination(false);
                 setCurrentRoundFailed([]); // Clear current round failed
                 proceedToNextPhase(survivors, originalParticipantCount);
-            }, 4000); // Show elimination for 4 seconds
+            }, 15000); // Show elimination for 15 seconds
         } else {
             // No one failed, proceed immediately
             proceedToNextPhase(survivors, originalParticipantCount);
@@ -265,11 +249,6 @@ const NumberGuessingGame = () => {
                 if (currentRound === 0) {
                     console.log('🔄 Round 1 complete, proceeding to Round 2');
                     setGamePhase('round2');
-                    // Start round 2 announcement
-                    setTimeout(() => {
-                        setRoundAnnouncement(true);
-                        setCountdown(15);
-                    }, 2000);
                 } else {
                     console.log('🏁 Round 2 complete, proceeding to DrawWinner');
                     setGamePhase('complete');
@@ -281,7 +260,7 @@ const NumberGuessingGame = () => {
 
                     updateGameStatus(updateData).then((success) => {
                         navigate(`/draw-winner/${gameId}`, {
-                            state: { filteredParticipants: survivors }
+                            state: { filteredParticipants: survivors, sourceGameId: gameId }
                         });
                     });
                 }
@@ -294,7 +273,7 @@ const NumberGuessingGame = () => {
             const winner = survivors[0];
             const updateData = {
                 status: 'completed',
-                winner: winner,
+                winner: winner?._id,
                 endTime: new Date().toISOString(),
                 message: `Winner: ${winner.name}`
             };
@@ -304,7 +283,8 @@ const NumberGuessingGame = () => {
                     state: {
                         filteredParticipants: survivors,
                         skipDrawing: true,
-                        winner: winner
+                        winner: winner,
+                        sourceGameId: gameId
                     }
                 });
             });
@@ -315,11 +295,6 @@ const NumberGuessingGame = () => {
                 if (currentRound === 0) {
                     console.log('🔄 MIXED RESULTS - Continue to Round 2');
                     setGamePhase('round2');
-                    // Start round 2 announcement
-                    setTimeout(() => {
-                        setRoundAnnouncement(true);
-                        setCountdown(15);
-                    }, 2000);
                 } else {
                     console.log('🏁 MIXED RESULTS - Proceed to DrawWinner');
                     setGamePhase('complete');
@@ -331,7 +306,7 @@ const NumberGuessingGame = () => {
 
                     updateGameStatus(updateData).then((success) => {
                         navigate(`/draw-winner/${gameId}`, {
-                            state: { filteredParticipants: survivors }
+                            state: { filteredParticipants: survivors, sourceGameId: gameId }
                         });
                     });
                 }
@@ -344,7 +319,7 @@ const NumberGuessingGame = () => {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-yellow-100 via-orange-100 to-pink-100">
-                <div className="text-2xl font-bold text-orange-600">Loading game...</div>
+                <div className="text-2xl font-bold text-orange-600">አሸናፊውን ልናወጣ ነው ዝግጁጁ...?</div>
             </div>
         );
     }
@@ -503,49 +478,6 @@ const NumberGuessingGame = () => {
                 )}
             </button>
 
-            {/* Pause/Resume Game Button */}
-            <button
-                onClick={() => setIsPaused(!isPaused)}
-                className="fixed top-6 left-6 z-50 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-full px-6 py-3 shadow-2xl transition-all duration-300 border-2 border-white flex items-center gap-3 backdrop-blur-sm"
-                title={isPaused ? "Resume Game" : "Pause Game"}
-            >
-                {isPaused ? (
-                    <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="font-bold">Resume</span>
-                    </>
-                ) : (
-                    <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="font-bold">Pause</span>
-                    </>
-                )}
-            </button>
-
-            {/* Round Announcement Overlay */}
-            {roundAnnouncement && (
-                <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-                    <div className="bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 p-8 rounded-3xl shadow-2xl text-center text-white border-4 border-white">
-                        <div className="text-6xl mb-4">🎮</div>
-                        <h2 className="text-4xl font-black mb-4">Round {round + 1} Starting!</h2>
-                        <div className="text-8xl font-black mb-6 animate-pulse">
-                            {countdown}
-                        </div>
-                        <p className="text-xl opacity-90">
-                            {isPaused ? "Game Paused" : "Get ready to guess!"}
-                        </p>
-                        {isPaused && (
-                            <div className="mt-4 text-lg opacity-75">
-                                Click "Resume" to continue
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
 
             {/* Enhanced Game header */}
             <div className="w-full text-center py-6 relative z-10">

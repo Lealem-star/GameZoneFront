@@ -261,9 +261,12 @@ const CreateGameModal = ({ open, onClose, onGameCreated, games, transferParticip
   useEffect(() => {
     // Filter completed games that have participants
     if (games && games.length > 0) {
+      console.log('DEBUG - Filtering games for transfer dropdown');
+      console.log('DEBUG - Total games available:', games.length);
       const completedWithParticipants = games.filter(g =>
-        g.winner && Array.isArray(g.participants) && g.participants.length > 0
+        g.status === 'completed' && Array.isArray(g.participants) && g.participants.length > 0
       );
+      console.log('DEBUG - Completed games with participants:', completedWithParticipants);
       setPreviousGames(completedWithParticipants);
     }
   }, [games]);
@@ -300,14 +303,22 @@ const CreateGameModal = ({ open, onClose, onGameCreated, games, transferParticip
         const sourceGame = games.find(g => g._id === selectedGame);
 
         if (sourceGame && Array.isArray(sourceGame.participants) && sourceGame.participants.length > 0) {
+          console.log('DEBUG - Transferring participants from:', sourceGame._id);
+          console.log('DEBUG - Source game participants:', sourceGame.participants);
           // Transfer each participant to the new game
           for (const participant of sourceGame.participants) {
-            await createParticipant(newGameId, {
+            console.log('DEBUG - Transferring participant:', participant);
+            const transferData = {
               name: participant.name,
               photo: participant.photo,
               emoji: participant.emoji
-            });
+            };
+            console.log('DEBUG - Transfer data being sent:', transferData);
+            await createParticipant(newGameId, transferData);
           }
+          console.log('DEBUG - Participants transferred successfully.');
+        } else {
+          console.warn('No participants found in selected game or game not found.');
         }
       }
 
@@ -542,6 +553,7 @@ const GameControllerDashboard = () => {
 
     try {
       const gamesData = await getGamesControllerById(userId);
+      console.log('DEBUG - All games fetched:', gamesData);
       setGames(gamesData);
       const todayGames = gamesData.filter(g => isToday(g.createdAt));
       const totalGamesToday = todayGames.length;

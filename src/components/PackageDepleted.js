@@ -9,7 +9,7 @@ const PackageDepleted = () => {
   const handleLogout = () => {
     // Use the logout function from authService
     logout();
-    
+
     // Redirect to login page
     navigate('/');
   };
@@ -22,7 +22,7 @@ const PackageDepleted = () => {
           <h1 className="text-2xl font-bold text-red-600 mb-2">Package Depleted</h1>
           <div className="w-16 h-1 bg-red-500 mb-4"></div>
         </div>
-        
+
         <div className="text-center mb-8">
           <p className="text-gray-700 mb-4">
             Your package has been depleted. You cannot access the system until you purchase a new package.
@@ -39,13 +39,13 @@ const PackageDepleted = () => {
               </div>
               <div className="ml-3">
                 <p className="text-sm text-yellow-700">
-                  Contact information: <strong>admin@gursha.com</strong>
+                  Contact information: <strong>0934551781</strong>
                 </p>
               </div>
             </div>
           </div>
         </div>
-        
+
         <button
           onClick={handleLogout}
           className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition duration-200 font-medium"
