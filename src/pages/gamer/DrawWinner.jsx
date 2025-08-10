@@ -164,8 +164,8 @@ const DrawWinner = () => {
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-yellow-100 via-orange-100 to-pink-100 relative overflow-hidden">
-            <audio ref={tickingAudioRef} src={encodeURI('/sounds/ticking.mp3')} loop preload="auto" />
-            <audio ref={celebrationAudioRef} src={encodeURI('/sounds/celebration.mp3')} preload="auto" />
+            <audio ref={tickingAudioRef} src={process.env.PUBLIC_URL + '/sounds/ticking.mp3'} loop preload="auto" onError={(e) => console.error('Ticking audio load error:', e.target.src)} />
+            <audio ref={celebrationAudioRef} src={process.env.PUBLIC_URL + '/sounds/celebration.mp3'} preload="auto" onError={(e) => console.error('Celebration audio load error:', e.target.src)} />
 
             {spinning && (
                 <div className="fixed top-8 right-8 z-20 flex flex-col items-center bg-white bg-opacity-80 rounded-lg shadow-lg px-8 py-6 animate-fade-in-up">

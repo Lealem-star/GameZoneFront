@@ -107,8 +107,12 @@ export const signup = async (userData) => {
 };
 
 // Logout function
-export const logout = () => {
+export const logout = async () => {
   console.log('🚪 Logging out user');
+  
+  // Get the current device ID before clearing localStorage
+  const deviceId = localStorage.getItem('deviceId');
+  const token = localStorage.getItem('token');
   
   // Clear all authentication data from localStorage
   localStorage.removeItem('token');
@@ -117,8 +121,29 @@ export const logout = () => {
   localStorage.removeItem('username');
   localStorage.removeItem('user');
   
-  // Don't remove deviceId on logout to maintain device tracking
-  // If you want to completely remove the device, use the device manager
+  // Also remove the deviceId to completely disconnect this device
+  localStorage.removeItem('deviceId');
+  
+  // If we have both token and deviceId, call the API to remove the device
+  if (token && deviceId) {
+    try {
+      // Create a temporary axios instance with the token
+      const api = axios.create({
+        baseURL: API_BASE_URL,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      // Call the remove device API
+      await api.post('/auth/devices/remove', { deviceId });
+      console.log('✅ Device removed from account');
+    } catch (error) {
+      console.error('Failed to remove device during logout:', error);
+      // Continue with logout even if device removal fails
+    }
+  }
   
   console.log('✅ Logout successful');
   return { success: true };

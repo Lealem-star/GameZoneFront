@@ -37,17 +37,48 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId, game }) => {
     const nameInputRef = useRef(null);
     const [toast, setToast] = useState(null);
     const [recentParticipants, setRecentParticipants] = useState([]);
+    const [hasCameraSupport, setHasCameraSupport] = useState(true); // Assume camera support by default
+    
+    // Check if device has camera capabilities
+    useEffect(() => {
+        if (open) {
+            // Check if the device has camera capabilities
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                console.log('Device has camera capabilities');
+                setHasCameraSupport(true);
+            } else {
+                console.log('Device does not have camera capabilities');
+                setHasCameraSupport(false);
+                // If no camera support, default to emoji mode
+                setUseEmoji(true);
+            }
+        }
+    }, [open]);
 
     useEffect(() => {
         if (showCamera && videoRef.current) {
             (async () => {
                 try {
-                    // Use back camera by specifying facingMode
-                    streamRef.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } });
+                    // First try to use the back camera (for mobile devices)
+                    try {
+                        streamRef.current = await navigator.mediaDevices.getUserMedia({ 
+                            video: { facingMode: { exact: "environment" } } 
+                        });
+                        console.log('Using back camera');
+                    } catch (mobileErr) {
+                        // If back camera fails, try to use any available camera (for PC/laptop)
+                        console.log('Back camera not available, trying default camera', mobileErr);
+                        streamRef.current = await navigator.mediaDevices.getUserMedia({ 
+                            video: true 
+                        });
+                        console.log('Using default camera');
+                    }
+                    
                     videoRef.current.srcObject = streamRef.current;
                     videoRef.current.play();
                 } catch (err) {
-                    alert('Could not access camera');
+                    console.error('Could not access any camera:', err);
+                    alert('Could not access camera. Please make sure camera permissions are granted.');
                     setShowCamera(false);
                 }
             })();
@@ -130,25 +161,100 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId, game }) => {
         // Hide suggestions immediately
         setShowSuggestions(false);
     };
+    
+    // Helper function to compress images before upload
+    const compressImage = (dataUrl, maxWidth = 800, quality = 0.7) => {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.src = dataUrl;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                
+                // Calculate new dimensions while maintaining aspect ratio
+                if (width > maxWidth) {
+                    height = Math.floor(height * (maxWidth / width));
+                    width = maxWidth;
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Convert to compressed JPEG
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                resolve(compressedDataUrl);
+            };
+        });
+    };
 
     const handleCapture = () => {
         const video = videoRef.current;
         const canvas = canvasRef.current;
         if (video && canvas) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const dataUrl = canvas.toDataURL('image/png');
-            setCapturedImage(dataUrl);
-            setPhoto(null); // Clear file input if any
-            setShowCamera(false);
+            try {
+                // Get the video dimensions
+                const videoWidth = video.videoWidth;
+                const videoHeight = video.videoHeight;
+                
+                // Check if we have valid dimensions
+                if (!videoWidth || !videoHeight) {
+                    console.error('Invalid video dimensions:', videoWidth, videoHeight);
+                    setToast({
+                        message: 'Camera not ready yet. Please try again.',
+                        type: 'error'
+                    });
+                    return;
+                }
+                
+                // Set canvas dimensions to match video
+                canvas.width = videoWidth;
+                canvas.height = videoHeight;
+                
+                // Draw the video frame to the canvas
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Convert to data URL with reduced quality for better performance
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                
+                // Compress the image before setting it
+                compressImage(dataUrl, 800, 0.7).then(compressedImage => {
+                    // Set the compressed captured image
+                    setCapturedImage(compressedImage);
+                    console.log('Image compressed successfully');
+                });
+                setPhoto(null); // Clear file input if any
+                setShowCamera(false);
+                
+                // Stop the camera stream
+                if (streamRef.current) {
+                    streamRef.current.getTracks().forEach(track => track.stop());
+                    streamRef.current = null;
+                }
+            } catch (err) {
+                console.error('Error capturing photo:', err);
+                setToast({
+                    message: 'Failed to capture photo. Please try again or use upload option.',
+                    type: 'error'
+                });
+            }
         }
     };
 
     const handleRetake = () => {
         setCapturedImage(null); // Clear captured image
-        setShowCamera(true); // Show camera again
+        
+        // If device has camera support, show camera again
+        if (hasCameraSupport) {
+            setShowCamera(true); // Show camera again
+        } else {
+            // If no camera support, prompt for file upload
+            document.getElementById('file-upload').click();
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -189,21 +295,46 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId, game }) => {
     // Helper function to add participant
     const addParticipant = async (photoBase64, emojiValue) => {
         try {
+            // Show loading toast
+            setToast({ message: 'Adding participant...', type: 'success' });
+            
+            // Process the image if it exists
+            let processedPhoto = photoBase64;
+            if (photoBase64 && !photoBase64.startsWith('data:image/jpeg')) {
+                try {
+                    // Ensure the image is compressed for optimal performance
+                    processedPhoto = await compressImage(photoBase64, 800, 0.7);
+                    console.log('Final image compression applied before upload');
+                } catch (compressionErr) {
+                    console.error('Error in final compression:', compressionErr);
+                    // Continue with the original image if compression fails
+                    processedPhoto = photoBase64;
+                }
+            }
+            
+            // Create the participant with the processed image
             await createParticipant(gameId, {
                 name,
-                photo: photoBase64,
+                photo: processedPhoto,
                 emoji: emojiValue || emoji
             }); // Include emoji in the participant data
+            
+            // Reset all states
             setName('');
             setPhoto(null);
             setCapturedImage(null);
             setEmoji('😀'); // Reset emoji to default
             setUseEmoji(false); // Reset to photo mode
-            onAdded({ name, photo: photoBase64, emoji: emojiValue || emoji }); // Pass both photo and emoji
+            
+            // Notify parent component and close modal
+            onAdded({ name, photo: processedPhoto, emoji: emojiValue || emoji }); // Pass both photo and emoji
             onClose();
+            
+            // Show success toast
             setToast({ message: 'Participant added successfully!', type: 'success' });
         } catch (err) {
-            setToast({ message: 'Failed to add participant', type: 'error' });
+            console.error('Error adding participant:', err);
+            setToast({ message: 'Failed to add participant. Please try again.', type: 'error' });
         } finally {
             setSubmitting(false);
         }
@@ -306,16 +437,103 @@ const AddParticipantModal = ({ open, onClose, onAdded, gameId, game }) => {
                             ) : null}
                             {showCamera ? (
                                 <div className="flex flex-col items-center gap-2">
-                                    <video ref={videoRef} className="w-full h-auto bg-black rounded" autoPlay playsInline />
+                                    <div className="relative w-full overflow-hidden rounded bg-black">
+                                        <video 
+                                            ref={videoRef} 
+                                            className="w-full h-auto object-cover transform" 
+                                            style={{ 
+                                                transform: 'rotateY(0deg)', /* Fix mirroring issues on some devices */
+                                                maxHeight: '50vh' /* Limit height on larger screens */
+                                            }} 
+                                            autoPlay 
+                                            playsInline 
+                                            muted /* Required for autoplay on some browsers */
+                                        />
+                                        <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none">
+                                            <div className="border-2 border-white border-opacity-50 rounded-lg w-4/5 h-4/5"></div>
+                                        </div>
+                                    </div>
                                     <canvas ref={canvasRef} style={{ display: 'none' }} />
-                                    <button type="button" className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition-all duration-200" onClick={handleCapture}>Capture</button>
-                                    <button type="button" className="text-gray-500 underline" onClick={() => setShowCamera(false)}>Cancel</button>
+                                    <div className="flex gap-3 w-full justify-center mt-2">
+                                        <button 
+                                            type="button" 
+                                            className="bg-green-600 text-white px-6 py-2 rounded-full font-semibold hover:bg-green-700 transition-all duration-200 flex-1 max-w-xs" 
+                                            onClick={handleCapture}
+                                        >
+                                            Capture
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            className="bg-gray-500 text-white px-6 py-2 rounded-full font-semibold hover:bg-gray-600 transition-all duration-200 flex-1 max-w-xs" 
+                                            onClick={() => {
+                                                setShowCamera(false);
+                                                // Stop the camera stream
+                                                if (streamRef.current) {
+                                                    streamRef.current.getTracks().forEach(track => track.stop());
+                                                    streamRef.current = null;
+                                                }
+                                            }}
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="flex flex-col gap-2">
                                     {(!capturedImage && !showCamera) && (
-                                        <button type="button" className="bg-blue-500 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700 transition-all duration-200" onClick={() => setShowCamera(true)}>Take Photo</button>
+                                <div className="flex flex-col gap-2 w-full">
+                                    {hasCameraSupport && (
+                                        <button 
+                                            type="button" 
+                                            className="bg-blue-500 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700 transition-all duration-200 w-full" 
+                                            onClick={() => setShowCamera(true)}
+                                        >
+                                            Take Photo with Camera
+                                        </button>
                                     )}
+                                    <div className="relative w-full">
+                                        <button 
+                                            type="button" 
+                                            className="bg-purple-500 text-white px-4 py-2 rounded font-semibold hover:bg-purple-700 transition-all duration-200 w-full"
+                                            onClick={() => document.getElementById('file-upload').click()}
+                                        >
+                                            Upload Photo
+                                        </button>
+                                        <input 
+                                            id="file-upload"
+                                            type="file" 
+                                            accept="image/*"
+                                            capture={hasCameraSupport ? undefined : "environment"}
+                                            className="hidden" 
+                                            onChange={(e) => {
+                                                if (e.target.files && e.target.files[0]) {
+                                                    const reader = new FileReader();
+                                                    reader.onload = async (event) => {
+                                                        try {
+                                                            // Compress the uploaded image
+                                                            const compressedImage = await compressImage(event.target.result, 800, 0.7);
+                                                            setCapturedImage(compressedImage);
+                                                            console.log('Uploaded image compressed successfully');
+                                                        } catch (err) {
+                                                            console.error('Error compressing uploaded image:', err);
+                                                            // Fallback to original image if compression fails
+                                                            setCapturedImage(event.target.result);
+                                                        }
+                                                    };
+                                                    reader.readAsDataURL(e.target.files[0]);
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                    <button 
+                                        type="button" 
+                                        className="bg-yellow-500 text-white px-4 py-2 rounded font-semibold hover:bg-yellow-600 transition-all duration-200 w-full"
+                                        onClick={() => setUseEmoji(true)}
+                                    >
+                                        Use Emoji Instead
+                                    </button>
+                                </div>
+                            )}
                                 </div>
                             )}
                         </>
@@ -366,21 +584,31 @@ const ParticipantMarquee = ({ participants }) => {
                         style={{ animationDelay: `${(idx % participants.length) * 0.1}s` }}
                     >
                         {participant.photo ? (
-                            <img
-                                src={participant.photo.startsWith('http') ? participant.photo : `${process.env.REACT_APP_API_BASE_URL.replace('/api', '')}${participant.photo}`}
-                                alt={participant.name}
-                                className="absolute top-0 left-0 w-full h-full object-cover z-0"
-                                onError={(e) => {
-                                    console.error('Image load error:', e);
-                                    // Handle the image error by displaying the emoji
-                                    const emojiContainer = document.getElementById(`emoji-${participant._id}`);
-                                    if (emojiContainer) {
-                                        emojiContainer.style.display = 'flex'; // Show the emoji container
-                                    }
-                                }}
-                            />
+                            <>
+                                <img
+                                    src={participant.photo.startsWith('data:image') ? participant.photo : getFormattedImageUrl(participant.photo)}
+                                    alt={participant.name}
+                                    className="absolute top-0 left-0 w-full h-full object-cover z-0"
+                                    onError={(e) => {
+                                        console.error('Image load error for participant:', participant.name, 'Photo URL:', e.target.src);
+                                        // Hide the broken image
+                                        e.target.style.display = 'none';
+                                        // Show the emoji fallback
+                                        const fallbackElement = e.target.nextElementSibling;
+                                        if (fallbackElement) {
+                                            fallbackElement.style.display = 'flex';
+                                        }
+                                    }}
+                                />
+                                <div 
+                                    className="absolute top-0 left-0 w-full h-full flex items-center justify-center text-8xl z-0 bg-gradient-to-br from-yellow-100 to-orange-50"
+                                    style={{ display: 'none' }} // Initially hidden
+                                >
+                                    <span role="img" aria-label="participant-emoji">{participant.emoji || '😀'}</span>
+                                </div>
+                            </>
                         ) : (
-                            <div id={`emoji-${participant._id}`} className="absolute top-0 left-0 w-full h-full flex items-center justify-center text-8xl z-0 bg-gradient-to-br from-yellow-100 to-orange-50">
+                            <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center text-8xl z-0 bg-gradient-to-br from-yellow-100 to-orange-50">
                                 <span role="img" aria-label="participant-emoji">{participant.emoji || '😀'}</span>
                             </div>
                         )}
@@ -457,10 +685,31 @@ const GameDashboard = () => {
             setShowParticipantAnimation(true);
             const playWelcomeAudio = () => {
                 try {
-                    const audio = new Audio(encodeURI('/sounds/welcome-good-luck.mp3'));
+                    // Use process.env.PUBLIC_URL to ensure correct path resolution
+                    const audioPath = process.env.PUBLIC_URL + '/sounds/welcome-good-luck.mp3';
+                    console.log('Attempting to play welcome audio from:', audioPath);
+                    
+                    const audio = new Audio(audioPath);
                     audio.volume = 1.0; // maximize loudness
-                    audio.play().catch(err => console.log('Welcome audio blocked:', err));
-                } catch (_) { }
+                    
+                    // Add error handling for the audio element
+                    audio.onerror = (err) => {
+                        console.error('Welcome audio failed to load:', err);
+                    };
+                    
+                    // Play with catch for browsers that block autoplay
+                    audio.play().catch(err => {
+                        console.error('Welcome audio blocked:', err);
+                        // If attentionAudioRef is available, try using that instead
+                        if (attentionAudioRef.current) {
+                            attentionAudioRef.current.play().catch(e => 
+                                console.error('Fallback audio also blocked:', e)
+                            );
+                        }
+                    });
+                } catch (err) {
+                    console.error('Error in playWelcomeAudio:', err);
+                }
             };
 
             try {
@@ -569,9 +818,25 @@ const GameDashboard = () => {
 
     return (
         <div className="flex min-h-screen bg-gray-100">
-            {/* Audio elements */}
-            <audio ref={tickingAudioRef} src={encodeURI("/sounds/tsehay.mp3")} preload="auto" />
-            <audio ref={attentionAudioRef} src={encodeURI("/sounds/welcome-good-luck.mp3")} preload="auto" />
+            {/* Audio elements with error handling */}
+            <audio 
+                ref={tickingAudioRef} 
+                src={process.env.PUBLIC_URL + "/sounds/tsehay.mp3"} 
+                preload="auto" 
+                onError={(e) => {
+                    console.error('Error loading audio file:', e);
+                    // Set a flag or state to indicate audio failed to load
+                    // This could be used to disable audio-dependent features
+                }}
+            />
+            <audio 
+                ref={attentionAudioRef} 
+                src={process.env.PUBLIC_URL + "/sounds/welcome-good-luck.mp3"} 
+                preload="auto" 
+                onError={(e) => {
+                    console.error('Error loading welcome audio file:', e);
+                }}
+            />
 
             {/* Audio control button */}
             <button
@@ -682,31 +947,40 @@ const GameDashboard = () => {
                     </div>
                 )}
                 {showParticipantAnimation && currentParticipant && (
-                    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-80 animate-fade-in">
-                        {currentParticipant.photo ? (
-                            <img
-                                src={currentParticipant.photo.startsWith('http') ? currentParticipant.photo : `${process.env.REACT_APP_API_BASE_URL.replace('/api', '')}${currentParticipant.photo}`}
-                                alt={currentParticipant.name}
-                                className="w-48 h-48 rounded-full object-cover border-4 border-white mb-6"
-                                onError={(e) => {
-                                    console.error('Participant animation image load error:', e);
-                                    // If the image fails to load, we'll show the emoji fallback
-                                    e.target.style.display = 'none';
-                                    const emojiContainer = e.target.nextElementSibling;
-                                    if (emojiContainer) {
-                                        emojiContainer.style.display = 'flex';
-                                    }
-                                }}
-                            />
-                        ) : (
-                            <div className="w-48 h-48 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 border-4 border-white mb-6 text-8xl">
-                                <span role="img" aria-label="participant-emoji">{currentParticipant.emoji || '😀'}</span>
-                            </div>
-                        )}
-                        <div className="text-4xl text-white font-bold mb-2 animate-bounce">{currentParticipant.name}</div>
-                        <div className="text-2xl text-yellow-200 font-semibold">Welcome to the game and good luck!</div>
+            <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-80 animate-fade-in">
+                {currentParticipant.photo ? (
+                    <div className="relative w-48 h-48 mb-6">
+                        <img
+                            src={currentParticipant.photo.startsWith('data:image') ? currentParticipant.photo : getFormattedImageUrl(currentParticipant.photo)}
+                            alt={currentParticipant.name}
+                            className="w-full h-full rounded-full object-cover border-4 border-white"
+                            onError={(e) => {
+                                console.error('Participant animation image load error for:', currentParticipant.name, 'Photo URL:', e.target.src);
+                                // Hide the broken image
+                                e.target.style.display = 'none';
+                                // Show the emoji fallback that's already in the DOM
+                                const fallbackElement = e.target.nextElementSibling;
+                                if (fallbackElement) {
+                                    fallbackElement.style.display = 'flex';
+                                }
+                            }}
+                        />
+                        <div 
+                            className="absolute top-0 left-0 w-full h-full rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 border-4 border-white text-8xl"
+                            style={{ display: 'none' }} // Initially hidden
+                        >
+                            <span role="img" aria-label="participant-emoji">{currentParticipant.emoji || '😀'}</span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="w-48 h-48 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 border-4 border-white mb-6 text-8xl">
+                        <span role="img" aria-label="participant-emoji">{currentParticipant.emoji || '😀'}</span>
                     </div>
                 )}
+                <div className="text-4xl text-white font-bold mb-2 animate-bounce">{currentParticipant.name}</div>
+                <div className="text-2xl text-yellow-200 font-semibold">Welcome to the game and good luck!</div>
+            </div>
+        )}
             </div>
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>

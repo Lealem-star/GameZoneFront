@@ -1,14 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaTrophy, FaUsers, FaDollarSign, FaGamepad, FaCog, FaUserCircle, FaPlus, FaSignOutAlt, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { getGames, createGame, getUserById, createParticipant, getGamesControllerById } from '../../services/api';
-import { logout } from '../../services/authService';
+import { useAuth } from '../../context/AuthContext';
 import { getFormattedImageUrl, handleImageError, checkImageExists } from '../../utils/imageUtils';
 import gurshaLogo from '../../assets/gurshalogo.png';
 import ParticipantForm from '../../components/ParticipantForm';
 
 const Sidebar = () => {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const [controller, setController] = useState(null);
   const [loading, setLoading] = useState(true);
   const [dailyRevenue, setDailyRevenue] = useState(0);
@@ -131,9 +132,17 @@ const Sidebar = () => {
     checkImage();
   }, [controller]);
 
-  const handleLogout = () => {
-    logout(); // Use the logout function from authService
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      // Use the async logout function from authService
+      await logout();
+      // Redirect to login page
+      navigate('/');
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Redirect to login page even if there's an error
+      navigate('/');
+    }
   };
 
   // Calculate remaining package amount
@@ -299,9 +308,13 @@ const CreateGameModal = ({ open, onClose, onGameCreated, games, transferParticip
 
       // Play new game announcement sound
       try {
-        const audio = new Audio(encodeURI('/sounds/welcome-good-luck.mp3'));
-        audio.play().catch(() => { });
-      } catch (_) { }
+        const audio = new Audio(process.env.PUBLIC_URL + '/sounds/Gamestart.mp3');
+        audio.play().catch((error) => { 
+          console.error('Game start audio play error:', error);
+        });
+      } catch (error) { 
+        console.error('Game start audio creation error:', error);
+      }
 
       // If transferring participants is enabled and a game is selected
       if (transferParticipants && selectedGame) {
@@ -508,7 +521,7 @@ const CompletedGamesTable = ({ games }) => {
   );
 };
 
-const OngoingGamesSection = ({ games }) => {
+const OngoingGamesSection = ({ games, onGameClick }) => {
   const navigate = useNavigate();
   return (
     <div className="mt-8">
@@ -523,7 +536,10 @@ const OngoingGamesSection = ({ games }) => {
             <div
               key={game._id}
               className="bg-gradient-to-br from-yellow-100 to-orange-200 rounded-xl shadow-lg p-6 flex flex-col gap-3 hover:scale-105 transition-transform duration-200 animate-fade-in-up cursor-pointer"
-              onClick={() => navigate(`/game/${game._id}`)}
+              onClick={() => {
+                onGameClick && onGameClick();
+                navigate(`/game/${game._id}`);
+              }}
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-lg font-bold text-orange-700">{game.name}</span>
@@ -555,7 +571,15 @@ const GameControllerDashboard = () => {
   const [currentGameForParticipant, setCurrentGameForParticipant] = useState(null);
   const [currentParticipant, setCurrentParticipant] = useState(null);
   const [transferParticipants, setTransferParticipants] = useState(false);
+  const drawWinnerAudioRef = useRef(null);
   const navigate = useNavigate();
+
+  const playDrawWinnerSound = () => {
+    if (drawWinnerAudioRef.current) {
+      drawWinnerAudioRef.current.currentTime = 0;
+      drawWinnerAudioRef.current.play().catch(err => console.log('Draw winner audio blocked:', err));
+    }
+  };
 
   const fetchData = async () => {
     const userId = localStorage.getItem('userId');
@@ -640,6 +664,7 @@ const GameControllerDashboard = () => {
       <div className="flex-1 flex flex-col">
         <TopBar onCreateGame={() => setShowCreateModal(true)} />
         <div className="px-8 py-6 flex-1 overflow-y-auto">
+          <audio ref={drawWinnerAudioRef} src={process.env.PUBLIC_URL + "/sounds/drawwinner.mp3"} preload="auto" onError={(e) => console.error('Draw winner audio load error:', e.target.src)} />
           <SummaryCards
             totalGames={totalGamesToday}
             totalParticipants={totalParticipants}
@@ -647,7 +672,7 @@ const GameControllerDashboard = () => {
             showRevenue={showRevenue}
             onToggleRevenue={() => setShowRevenue((prev) => !prev)}
           />
-          <OngoingGamesSection games={ongoingGames} />
+          <OngoingGamesSection games={ongoingGames} onGameClick={playDrawWinnerSound} />
           <CompletedGamesTable games={completedGames} />
         </div>
         <CreateGameModal

@@ -1,17 +1,24 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../assets/gurshalogo.png';
-import { logout } from '../services/authService';
+import { useAuth } from '../context/AuthContext';
 
 const PackageDepleted = () => {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
-  const handleLogout = () => {
-    // Use the logout function from authService
-    logout();
-
-    // Redirect to login page
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      // Use the async logout function from AuthContext
+      await logout();
+      
+      // Redirect to login page
+      navigate('/');
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Redirect to login page even if there's an error
+      navigate('/');
+    }
   };
 
   return (

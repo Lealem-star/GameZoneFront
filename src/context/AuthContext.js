@@ -13,14 +13,17 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [auth, setAuth] = useState(null);
 
-  const logout = () => {
-    authService.logout();
-    setAuth(null);
-    // Clear all auth-related localStorage items
-    localStorage.removeItem('token');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('role');
-    localStorage.removeItem('username');
+  const logout = async () => {
+    try {
+      // Call the async logout function from authService
+      await authService.logout();
+      setAuth(null);
+      // Note: localStorage items are already cleared in the authService.logout() function
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Ensure auth state is cleared even if there's an error
+      setAuth(null);
+    }
   };
 
   return (
