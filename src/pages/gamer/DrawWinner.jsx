@@ -180,10 +180,11 @@ const DrawWinner = () => {
                     <div className="flex flex-col items-center">
                         {winner.photo ? (
                             <img
-                                src={getFormattedImageUrl(winner.photo)}
+                                src={winner.photo.startsWith('data:image') ? winner.photo : getFormattedImageUrl(winner.photo)}
                                 alt={winner.name}
                                 className="w-48 h-48 md:w-64 md:h-64 rounded-full object-cover border-8 border-yellow-400 shadow-2xl mb-6 animate-bounce"
                                 onError={(e) => {
+                                    console.error('Winner image load error for:', winner.name, 'Photo URL:', e.target.src);
                                     e.currentTarget.style.display = 'none';
                                     const fallbackElement = document.createElement('div');
                                     fallbackElement.className = 'w-48 h-48 md:w-64 md:h-64 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 border-8 border-yellow-400 shadow-2xl mb-6 animate-bounce text-8xl';
@@ -231,10 +232,11 @@ const DrawWinner = () => {
                                 >
                                     {p.photo ? (
                                         <img
-                                            src={getFormattedImageUrl(p.photo)}
+                                            src={p.photo.startsWith('data:image') ? p.photo : getFormattedImageUrl(p.photo)}
                                             alt={p.name}
                                             className="w-full h-full object-cover"
                                             onError={(e) => {
+                                                console.error('Participant image load error for:', p.name, 'Photo URL:', e.target.src);
                                                 e.currentTarget.style.display = 'none';
                                                 const fallbackElement = document.createElement('div');
                                                 fallbackElement.className = 'w-full h-full flex items-center justify-center bg-gradient-to-br from-yellow-300 to-orange-200 text-8xl';
